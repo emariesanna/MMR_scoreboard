@@ -1,0 +1,15 @@
+streamlit
+pandas
+openpyxl
+qrcode
+Pillow
+altair
+
+
+# python -m venv venv
+# .\venv\Scripts\activate
+# pip install -r requirements.txt
+# streamlit run app_rocket.py
+
+
+# deactivate
