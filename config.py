@@ -18,6 +18,7 @@ PLAYER_COLORS = {
     "Peppe N": "#8c564b",   # Brown
     "Gio": "#e377c2",       # Pink
     "Michi": "#bcbd22",     # Yellow
+    "Andre": "#17becf",     # Cyan
 }
 
 DATE_COL = "Date"
