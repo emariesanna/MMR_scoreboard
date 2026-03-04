@@ -30,7 +30,7 @@ ORANGE_SCORE_COL = "Goal_Orange"
 OVERTIME_COL = "Overtime"
 
 BASE_MMR = 1000
-GAMMA = 400
+GAMMA = 600
 K_FACTOR = 0.85
 BASE_MMR_DELTA = 50
 GOAL_DIFFERENCE_FACTOR = {"Carlcio": 7, "NFL": 70, "Canestro": 7, "Dropshot": 3}
