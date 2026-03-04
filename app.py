@@ -1,8 +1,5 @@
 import streamlit as st
 import pandas as pd
-import qrcode
-import socket
-import io
 import altair as alt
 from datetime import date
 
@@ -19,14 +16,6 @@ def style_winrate(df_val, df_cnt):
             v = df_val.loc[r, c]
             df_text.loc[r, c] = "" if pd.isna(v) else f"{v:.0%} ({int(df_cnt.loc[r, c])})"
     return df_text.style.background_gradient(cmap='RdYlGn', vmin=0, vmax=1, gmap=df_val, axis=None)
-
-
-def get_local_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.connect(('10.255.255.255', 1))
-    ip = s.getsockname()[0]
-    s.close()
-    return ip
 
 
 def plot_line_chart(df_wide, x_col, y_cols, vline_x_values=None, tick_values=None):
@@ -63,16 +52,6 @@ def render_interface():
 
     st.sidebar.title("Game Mode")
     selected_sheet = st.sidebar.radio("Select Mode", SHEETS)
-
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("📱 Connect")
-    local_ip = get_local_ip()
-    network_url = f"http://{local_ip}:8501"
-    st.sidebar.markdown(f"**URL:** [{network_url}]({network_url})")
-    qr = qrcode.make(network_url)
-    buf = io.BytesIO()
-    qr.save(buf, format="PNG")
-    st.sidebar.image(buf.getvalue(), width=200)
 
     df_matches = read_sheet_df(selected_sheet)
 

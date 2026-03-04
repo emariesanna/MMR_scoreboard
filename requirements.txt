@@ -1,8 +1,6 @@
 streamlit
 pandas
 openpyxl
-qrcode
-Pillow
 altair
 matplotlib
 gspread
