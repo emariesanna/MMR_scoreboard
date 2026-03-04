@@ -39,7 +39,7 @@ def read_sheet_df(sheet_name: str) -> pd.DataFrame:
     df = pd.DataFrame(data)
     # Parse date column
     if DATE_COL in df.columns:
-        df[DATE_COL] = pd.to_datetime(df[DATE_COL], dayfirst=True)
+        df[DATE_COL] = pd.to_datetime(df[DATE_COL], format="ISO8601")
     # Parse overtime boolean
     if OVERTIME_COL in df.columns:
         df[OVERTIME_COL] = df[OVERTIME_COL].map(
