@@ -1,8 +1,9 @@
 import pandas as pd
 import json, os
 from config import ROOT
+from gsheets import read_sheet_df
 
-from config import BASE_MMR, BASE_MMR_DELTA, BASE_UNCERTAINTY, BLUE_SCORE_COL, BLUE_TEAM_COLS, DATE_COL, DB, GAMMA, GOAL_DIFFERENCE_FACTOR, K_FACTOR, MMR_DECAY_PER_DAY, ORANGE_SCORE_COL, ORANGE_TEAM_COLS, PLAYERS, OVERTIME_COL, UNCERTAINTY_DECAY, UNCERTAINTY_INCREASE
+from config import BASE_MMR, BASE_MMR_DELTA, BASE_UNCERTAINTY, BLUE_SCORE_COL, BLUE_TEAM_COLS, DATE_COL, GAMMA, GOAL_DIFFERENCE_FACTOR, K_FACTOR, MMR_DECAY_PER_DAY, ORANGE_SCORE_COL, ORANGE_TEAM_COLS, PLAYERS, OVERTIME_COL, UNCERTAINTY_DECAY, UNCERTAINTY_INCREASE
 
 def get_table(sheet_name):
     # table structure:
@@ -32,7 +33,7 @@ def get_table(sheet_name):
     last_date_mmr = {p: BASE_MMR for p in PLAYERS}
     uncertainty_factors = {}
 
-    db = pd.read_excel(DB, sheet_name=sheet_name)
+    db = read_sheet_df(sheet_name)
 
     for _, rows in db.iterrows():
         match_delta = {}

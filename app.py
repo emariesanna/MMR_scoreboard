@@ -2,12 +2,12 @@ import streamlit as st
 import pandas as pd
 import qrcode
 import socket
-import os
 import io
 import altair as alt
 from datetime import date
 
-from config import DB, PLAYERS, SHEETS, DATE_COL, MATCH_COL, BLUE_TEAM_COLS, ORANGE_TEAM_COLS, BLUE_SCORE_COL, ORANGE_SCORE_COL, OVERTIME_COL, PLAYER_COLORS
+from config import PLAYERS, SHEETS, DATE_COL, MATCH_COL, BLUE_TEAM_COLS, ORANGE_TEAM_COLS, BLUE_SCORE_COL, ORANGE_SCORE_COL, OVERTIME_COL, PLAYER_COLORS
+from gsheets import read_sheet_df, append_match
 from engine import get_table
 from presenter import prepare_match_table, prepare_leaderboard, prepare_mmr_history, prepare_daily_mmr_delta_history, prepare_uncertainty_history, prepare_winrate_matrices, prepare_date_changes
 
@@ -74,14 +74,7 @@ def render_interface():
     qr.save(buf, format="PNG")
     st.sidebar.image(buf.getvalue(), width=200)
 
-    empty_df = pd.DataFrame(columns=[DATE_COL, MATCH_COL, *BLUE_TEAM_COLS, BLUE_SCORE_COL, ORANGE_SCORE_COL, *ORANGE_TEAM_COLS, OVERTIME_COL])
-    if not os.path.exists(DB):
-        with pd.ExcelWriter(DB, engine='openpyxl') as writer:
-            for sheet in SHEETS:
-                empty_df.to_excel(writer, sheet_name=sheet, index=False)
-        df_matches = empty_df.copy()
-    else:
-        df_matches = pd.read_excel(DB, sheet_name=selected_sheet)
+    df_matches = read_sheet_df(selected_sheet)
 
     st.title("🏎️ Rocket League - MMR Scoreboard")
 
@@ -124,25 +117,23 @@ def render_interface():
                         last_id = 0
                     new_id = int(last_id) + 1
 
-                    new_row = {
-                        DATE_COL: pd.to_datetime(input_date),
-                        MATCH_COL: new_id,
-                        OVERTIME_COL: input_overtime,
-                        BLUE_SCORE_COL: score_blue,
-                        ORANGE_SCORE_COL: score_orange,
-                    }
-                    for i in range(4):
-                        new_row[BLUE_TEAM_COLS[i]] = sel_blue[i] if i < len(sel_blue) else None
-                        new_row[ORANGE_TEAM_COLS[i]] = sel_orange[i] if i < len(sel_orange) else None
-
-                    all_sheets = pd.read_excel(DB, sheet_name=None)
-                    for s in SHEETS:
-                        if s not in all_sheets:
-                            all_sheets[s] = empty_df.copy()
-                    all_sheets[selected_sheet] = pd.concat([all_sheets[selected_sheet], pd.DataFrame([new_row])], ignore_index=True)
-                    with pd.ExcelWriter(DB, engine='openpyxl') as writer:
-                        for sheet_name, df in all_sheets.items():
-                            df.to_excel(writer, sheet_name=sheet_name, index=False)
+                    row_values = [
+                        str(input_date),
+                        new_id,
+                        sel_blue[0] if len(sel_blue) > 0 else "",
+                        sel_blue[1] if len(sel_blue) > 1 else "",
+                        sel_blue[2] if len(sel_blue) > 2 else "",
+                        sel_blue[3] if len(sel_blue) > 3 else "",
+                        int(score_blue),
+                        int(score_orange),
+                        sel_orange[0] if len(sel_orange) > 0 else "",
+                        sel_orange[1] if len(sel_orange) > 1 else "",
+                        sel_orange[2] if len(sel_orange) > 2 else "",
+                        sel_orange[3] if len(sel_orange) > 3 else "",
+                        input_overtime,
+                    ]
+                    append_match(selected_sheet, row_values)
+                    read_sheet_df.clear()
                     st.success(f"Match {new_id} registered in {selected_sheet}!")
                     st.rerun()
 
