@@ -35,7 +35,7 @@ def prepare_match_table(table):
 
         display_rows.append(row_dict)
 
-    return pd.DataFrame(display_rows)
+    return pd.DataFrame(display_rows).sort_values("N.", ascending=False).reset_index(drop=True)
 
 
 def prepare_leaderboard(table):
