@@ -3,7 +3,7 @@ import pandas as pd
 import altair as alt
 from datetime import date
 
-from config import PLAYERS, SHEETS, DATE_COL, MATCH_COL, BLUE_TEAM_COLS, ORANGE_TEAM_COLS, BLUE_SCORE_COL, ORANGE_SCORE_COL, OVERTIME_COL, PLAYER_COLORS
+from config import PLAYERS, SHEETS, MATCH_COL, PLAYER_COLORS
 from gsheets import read_sheet_df, append_match
 from engine import get_table
 from presenter import prepare_match_table, prepare_leaderboard, prepare_mmr_history, prepare_daily_mmr_delta_history, prepare_uncertainty_history, prepare_winrate_matrices, prepare_date_changes
@@ -19,8 +19,8 @@ def style_winrate(df_val, df_cnt):
 
 
 def plot_line_chart(df_wide, x_col, y_cols, vline_x_values=None, tick_values=None):
-    domain_colors = list(PLAYER_COLORS.keys())
-    range_colors = list(PLAYER_COLORS.values())
+    domain_colors = [p for p in y_cols if p in PLAYER_COLORS]
+    range_colors = [PLAYER_COLORS[p] for p in domain_colors]
 
     df_long = df_wide.melt(id_vars=[x_col], value_vars=y_cols, var_name="Player", value_name="Value")
     axis_kwargs = dict(format="d", grid=False)
@@ -153,8 +153,8 @@ def render_interface():
         with col_leaderboard:
             df_lb = prepare_leaderboard(table)
             st.markdown("#### Current MMR")
-            domain_colors = list(PLAYER_COLORS.keys())
-            range_colors = list(PLAYER_COLORS.values())
+            domain_colors = [p for p in df_lb["Player"] if p in PLAYER_COLORS]
+            range_colors = [PLAYER_COLORS[p] for p in domain_colors]
             chart = alt.Chart(df_lb).mark_bar().encode(
                 x=alt.X("Player", sort="-y"),
                 y="MMR",
