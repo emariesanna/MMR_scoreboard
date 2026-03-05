@@ -1,8 +1,9 @@
 import pandas as pd
 import json, os
+from collections import defaultdict
 from config import (
     ROOT, SPREADSHEET_ID,
-    MK_PLAYERS, MK_DATE_COL, MK_MATCH_COL, MK_POSITION_COLS,
+    MK_DATE_COL, MK_MATCH_COL, MK_POSITION_COLS,
     MK_BASE_MMR, MK_GAMMA, MK_BASE_MMR_DELTA,
     MK_BASE_UNCERTAINTY, MK_UNCERTAINTY_DECAY, MK_UNCERTAINTY_INCREASE, MK_MMR_DECAY_PER_DAY,
 )
@@ -24,10 +25,10 @@ def get_mk_table(sheet_name: str) -> list:
     table = []
 
     active_players = set()
-    last_mmr = {p: MK_BASE_MMR for p in MK_PLAYERS}
+    last_mmr = defaultdict(lambda: MK_BASE_MMR)
     last_date = None
-    last_date_mmr = {p: MK_BASE_MMR for p in MK_PLAYERS}
-    uncertainty_factors = {}
+    last_date_mmr = defaultdict(lambda: MK_BASE_MMR)
+    uncertainty_factors = defaultdict(lambda: MK_BASE_UNCERTAINTY)
 
     db = read_sheet_df(sheet_name)
 
@@ -49,9 +50,8 @@ def get_mk_table(sheet_name: str) -> list:
         if n < 2:
             continue
 
-        # On first race ever, initialise uncertainty for all players
+        # On first race ever, initialise last_date
         if last_date is None:
-            uncertainty_factors = {p: MK_BASE_UNCERTAINTY for p in MK_PLAYERS}
             last_date = date_val
 
         # Day boundary: apply inactivity effects and snapshot MMR for win-prob calculations
@@ -67,7 +67,7 @@ def get_mk_table(sheet_name: str) -> list:
                     decay_delta[p] = -excess_days * MK_MMR_DECAY_PER_DAY * last_date_mmr[p]
                     last_mmr[p] += decay_delta[p]
                     uncertainty_factors[p] = MK_BASE_UNCERTAINTY
-            last_date_mmr = last_mmr.copy()
+            last_date_mmr = defaultdict(lambda: MK_BASE_MMR, last_mmr)
             last_date = date_val
 
         # Pairwise Elo delta

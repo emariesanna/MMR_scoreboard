@@ -70,3 +70,50 @@ def append_mk_race(sheet_name: str, row_values: list) -> None:
     sh = client.open_by_key(SPREADSHEET_ID)
     ws = sh.worksheet(sheet_name)
     ws.append_row(row_values, value_input_option="RAW")
+
+
+_PLAYERS_SHEET = "Players"
+
+
+@st.cache_data(ttl=60)
+def read_players_df() -> pd.DataFrame:
+    """Reads the Players sheet (Color Name, Color Code, game columns) and returns a DataFrame."""
+    client = _get_client()
+    sh = client.open_by_key(SPREADSHEET_ID)
+    ws = sh.worksheet(_PLAYERS_SHEET)
+    data = ws.get_all_records(default_blank=None)
+    if not data:
+        return pd.DataFrame()
+    return pd.DataFrame(data)
+
+
+def get_game_players(game_col: str):
+    """Returns (players: list[str], color_map: dict[str, str]) from the Players sheet for the given game column."""
+    df = read_players_df()
+    if df.empty or game_col not in df.columns:
+        return [], {}
+    players = []
+    color_map = {}
+    for _, row in df.iterrows():
+        name = str(row.get(game_col) or "").strip()
+        code = str(row.get("Color Code") or "").strip()
+        if name:
+            players.append(name)
+            if code:
+                color_map[name] = f"#{code}" if not code.startswith("#") else code
+    return players, color_map
+
+
+def append_player(name: str, game_cols: list, color_code: str = "") -> None:
+    """Appends a new player row to the Players sheet."""
+    client = _get_client()
+    sh = client.open_by_key(SPREADSHEET_ID)
+    ws = sh.worksheet(_PLAYERS_SHEET)
+    headers = ws.row_values(1)
+    row = [""] * len(headers)
+    for i, h in enumerate(headers):
+        if h == "Color Code":
+            row[i] = color_code.lstrip("#")
+        elif h in game_cols:
+            row[i] = name
+    ws.append_row(row, value_input_option="RAW")

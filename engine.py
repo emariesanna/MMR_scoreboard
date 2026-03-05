@@ -1,9 +1,10 @@
 import pandas as pd
 import json, os
+from collections import defaultdict
 from config import ROOT
 from gsheets import read_sheet_df
 
-from config import BASE_MMR, BASE_MMR_DELTA, BASE_UNCERTAINTY, BLUE_SCORE_COL, BLUE_TEAM_COLS, DATE_COL, GAMMA, GOAL_DIFFERENCE_FACTOR, K_FACTOR, MMR_DECAY_PER_DAY, ORANGE_SCORE_COL, ORANGE_TEAM_COLS, RL_PLAYERS, OVERTIME_COL, UNCERTAINTY_DECAY, UNCERTAINTY_INCREASE
+from config import BASE_MMR, BASE_MMR_DELTA, BASE_UNCERTAINTY, BLUE_SCORE_COL, BLUE_TEAM_COLS, DATE_COL, GAMMA, GOAL_DIFFERENCE_FACTOR, K_FACTOR, MMR_DECAY_PER_DAY, ORANGE_SCORE_COL, ORANGE_TEAM_COLS, OVERTIME_COL, UNCERTAINTY_DECAY, UNCERTAINTY_INCREASE
 
 def get_table(sheet_name):
     # table structure:
@@ -28,10 +29,10 @@ def get_table(sheet_name):
     table = []
     
     active_players = set() # Set to keep track of active players (those who have played at least one match)
-    last_mmr = {p: BASE_MMR for p in RL_PLAYERS}
+    last_mmr = defaultdict(lambda: BASE_MMR)
     last_date = None
-    last_date_mmr = {p: BASE_MMR for p in RL_PLAYERS}
-    uncertainty_factors = {}
+    last_date_mmr = defaultdict(lambda: BASE_MMR)
+    uncertainty_factors = defaultdict(lambda: BASE_UNCERTAINTY)
 
     db = read_sheet_df(sheet_name)
 
@@ -54,7 +55,7 @@ def get_table(sheet_name):
 
         # Win probability calculation
         if last_date is not None and date_val != last_date:
-            last_date_mmr = last_mmr.copy()
+            last_date_mmr = defaultdict(lambda: BASE_MMR, last_mmr)
         orange_size = len(orange_team)
         blue_size = len(blue_team)
         orange_MMR = sum(last_date_mmr[p] for p in orange_team)*orange_size**(K_FACTOR-1)
@@ -88,7 +89,6 @@ def get_table(sheet_name):
 
         # Uncertainty increase due to time passed and decay delta calculation
         if last_date is None:
-            uncertainty_factors = {p: BASE_UNCERTAINTY for p in RL_PLAYERS}
             last_date = date_val
         else:
             if last_date != date_val:

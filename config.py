@@ -6,33 +6,7 @@ SPREADSHEET_ID = "1wL1uCTaW9OJd3kfllbMMrUJileGvQcnE6t6dtaR_9So"
 
 SHEETS_RL = ["RL_Carlcio", "RL_NFL", "RL_Canestro", "RL_Dropshot"]
 SHEETS_MK = ["MarioKart"]
-
-RL_PLAYERS = ["Ema", "Fede", "Cris", "Marco", "Peppe B", "Peppe N", "Gio", "Andre", "Michi"]
-MK_PLAYERS = ["Ema", "Fede", "Marco", "Peppe N", "Michi", "Mari", "Giuli", "Eli", "Fra"]
-
-RL_PLAYER_COLORS = {
-    "Marco": "#1f77b4",     # Blue
-    "Ema": "#ff7f0e",       # Orange
-    "Fede": "#2ca02c",      # Green
-    "Peppe B": "#d62728",   # Red
-    "Cris": "#9467bd",      # Purple
-    "Peppe N": "#8c564b",   # Brown
-    "Gio": "#e377c2",       # Pink
-    "Michi": "#bcbd22",     # Yellow
-    "Andre": "#17becf",     # Cyan
-}
-
-MK_PLAYER_COLORS = {
-    "Marco": "#1f77b4",     # Blue
-    "Ema": "#ff7f0e",       # Orange
-    "Fede": "#2ca02c",      # Green
-    "Peppe N": "#d62728",   # Red
-    "Michi": "#bcbd22",     # Yellow
-    "Mari": "#8c564b",      # Brown
-    "Giuli": "#e377c2",       # Pink
-    "Eli": "#9467bd",      # Purple
-    "Fra": "#17becf",     # Cyan
-}
+SHEETS_FIFA = ["FIFA"]
 
 # --- Rocket League ---
 DATE_COL = "Date"
@@ -46,9 +20,9 @@ BASE_MMR = 1000
 GAMMA = 800
 K_FACTOR = 0.85
 BASE_MMR_DELTA = 25
-GOAL_DIFFERENCE_FACTOR = {"RL_Carlcio": 7, "RL_NFL": 70, "RL_Canestro": 7, "RL_Dropshot": 3}
+GOAL_DIFFERENCE_FACTOR = {"RL_Carlcio": 7, "RL_NFL": 70, "RL_Canestro": 7, "RL_Dropshot": 3, "FIFA": 5}
 BASE_UNCERTAINTY = 3.0
-UNCERTAINTY_DECAY = {"RL_Carlcio": 0.1, "RL_NFL": 0.25, "RL_Canestro": 0.25, "RL_Dropshot": 0.25} # Per match
+UNCERTAINTY_DECAY = {"RL_Carlcio": 0.1, "RL_NFL": 0.25, "RL_Canestro": 0.25, "RL_Dropshot": 0.25, "FIFA": 0.15} # Per match
 UNCERTAINTY_INCREASE = 0.025 # Per day of inactivity
 MMR_DECAY_PER_DAY = 0.005 # Percentage of score to subtract from the player for each day without playing after reaching maximum uncertainty
 
