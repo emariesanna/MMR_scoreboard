@@ -47,7 +47,8 @@ def prepare_leaderboard(table):
 
 
 def prepare_mmr_history(table):
-    current_mmr = {p: BASE_MMR for p in PLAYERS}
+    active_players = list(table[-1]["Total MMR"].keys())
+    current_mmr = {p: BASE_MMR for p in active_players}
     history = [{"Match": 0, **current_mmr}]
 
     for i, entry in enumerate(table, start=1):
@@ -58,9 +59,11 @@ def prepare_mmr_history(table):
 
 
 def prepare_uncertainty_history(table):
+    active_players = set(table[-1]["Total MMR"].keys())
     history = []
     for i, entry in enumerate(table, start=1):
-        record = {"Match": i, **entry["Uncertainty Factors"]}
+        unc = {p: v for p, v in entry["Uncertainty Factors"].items() if p in active_players}
+        record = {"Match": i, **unc}
         history.append(record)
 
     return pd.DataFrame(history)
@@ -85,13 +88,14 @@ def prepare_daily_mmr_delta_history(table):
 
 
 def prepare_winrate_matrices(table):
+    active_players = list(table[-1]["Total MMR"].keys())
 
-    together_m = {p1: {p2: 0 for p2 in PLAYERS} for p1 in PLAYERS}
-    together_w = {p1: {p2: 0 for p2 in PLAYERS} for p1 in PLAYERS}
-    against_m  = {p1: {p2: 0 for p2 in PLAYERS} for p1 in PLAYERS}
-    against_w  = {p1: {p2: 0 for p2 in PLAYERS} for p1 in PLAYERS}
-    global_m   = {p: 0 for p in PLAYERS}
-    global_w   = {p: 0 for p in PLAYERS}
+    together_m = {p1: {p2: 0 for p2 in active_players} for p1 in active_players}
+    together_w = {p1: {p2: 0 for p2 in active_players} for p1 in active_players}
+    against_m  = {p1: {p2: 0 for p2 in active_players} for p1 in active_players}
+    against_w  = {p1: {p2: 0 for p2 in active_players} for p1 in active_players}
+    global_m   = {p: 0 for p in active_players}
+    global_w   = {p: 0 for p in active_players}
 
     for entry in table:
         blue = entry["Blue Team"]
@@ -123,21 +127,21 @@ def prepare_winrate_matrices(table):
                 against_m[p2][p1] += 1
                 if not blue_won: against_w[p2][p1] += 1  
 
-    df_together_w  = pd.DataFrame(index=PLAYERS, columns=PLAYERS, dtype=float)
-    df_against_w   = pd.DataFrame(index=PLAYERS, columns=PLAYERS, dtype=float)
-    df_together_m = pd.DataFrame(index=PLAYERS, columns=PLAYERS, dtype=float)
-    df_against_m  = pd.DataFrame(index=PLAYERS, columns=PLAYERS, dtype=float)
+    df_together_w  = pd.DataFrame(index=active_players, columns=active_players, dtype=float)
+    df_against_w   = pd.DataFrame(index=active_players, columns=active_players, dtype=float)
+    df_together_m = pd.DataFrame(index=active_players, columns=active_players, dtype=float)
+    df_against_m  = pd.DataFrame(index=active_players, columns=active_players, dtype=float)
 
     # Minimum matches threshold for winrate calculation to avoid misleading percentages with very few games played
     MIN_MATCHES = 1
 
-    for p1 in PLAYERS:
+    for p1 in active_players:
         wr_global = (global_w[p1] / global_m[p1]) if global_m[p1] >= MIN_MATCHES else float('nan')
         df_together_w.loc[p1, p1] = wr_global
         df_against_w.loc[p1, p1]  = wr_global
         df_together_m.loc[p1, p1] = global_m[p1] if global_m[p1] >= MIN_MATCHES else float('nan')
         df_against_m.loc[p1, p1]  = global_m[p1] if global_m[p1] >= MIN_MATCHES else float('nan')
-        for p2 in PLAYERS:
+        for p2 in active_players:
             if p1 != p2:
                 df_together_w.loc[p1, p2]  = (together_w[p1][p2] / together_m[p1][p2]) if together_m[p1][p2] >= MIN_MATCHES else float('nan')
                 df_together_m.loc[p1, p2] = together_m[p1][p2] if together_m[p1][p2] >= MIN_MATCHES else float('nan')
@@ -145,7 +149,7 @@ def prepare_winrate_matrices(table):
                 df_against_m.loc[p1, p2]  = against_m[p1][p2]  if against_m[p1][p2]  >= MIN_MATCHES else float('nan')
 
     # Order players by global winrate and sort matrices accordingly
-    df_global_w = pd.Series({p: (global_w[p] / global_m[p]) if global_m[p] >= MIN_MATCHES else float('nan') for p in PLAYERS}, dtype=float)
+    df_global_w = pd.Series({p: (global_w[p] / global_m[p]) if global_m[p] >= MIN_MATCHES else float('nan') for p in active_players}, dtype=float)
     sorted_players = df_global_w.sort_values(ascending=False, na_position='last').index.tolist()
     df_together_w  = df_together_w.loc[sorted_players, sorted_players]
     df_against_w   = df_against_w.loc[sorted_players, sorted_players]
