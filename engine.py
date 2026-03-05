@@ -3,7 +3,7 @@ import json, os
 from config import ROOT
 from gsheets import read_sheet_df
 
-from config import BASE_MMR, BASE_MMR_DELTA, BASE_UNCERTAINTY, BLUE_SCORE_COL, BLUE_TEAM_COLS, DATE_COL, GAMMA, GOAL_DIFFERENCE_FACTOR, K_FACTOR, MMR_DECAY_PER_DAY, ORANGE_SCORE_COL, ORANGE_TEAM_COLS, PLAYERS, OVERTIME_COL, UNCERTAINTY_DECAY, UNCERTAINTY_INCREASE
+from config import BASE_MMR, BASE_MMR_DELTA, BASE_UNCERTAINTY, BLUE_SCORE_COL, BLUE_TEAM_COLS, DATE_COL, GAMMA, GOAL_DIFFERENCE_FACTOR, K_FACTOR, MMR_DECAY_PER_DAY, ORANGE_SCORE_COL, ORANGE_TEAM_COLS, RL_PLAYERS, OVERTIME_COL, UNCERTAINTY_DECAY, UNCERTAINTY_INCREASE
 
 def get_table(sheet_name):
     # table structure:
@@ -28,9 +28,9 @@ def get_table(sheet_name):
     table = []
     
     active_players = set() # Set to keep track of active players (those who have played at least one match)
-    last_mmr = {p: BASE_MMR for p in PLAYERS}
+    last_mmr = {p: BASE_MMR for p in RL_PLAYERS}
     last_date = None
-    last_date_mmr = {p: BASE_MMR for p in PLAYERS}
+    last_date_mmr = {p: BASE_MMR for p in RL_PLAYERS}
     uncertainty_factors = {}
 
     db = read_sheet_df(sheet_name)
@@ -88,7 +88,7 @@ def get_table(sheet_name):
 
         # Uncertainty increase due to time passed and decay delta calculation
         if last_date is None:
-            uncertainty_factors = {p: BASE_UNCERTAINTY for p in PLAYERS}
+            uncertainty_factors = {p: BASE_UNCERTAINTY for p in RL_PLAYERS}
             last_date = date_val
         else:
             if last_date != date_val:

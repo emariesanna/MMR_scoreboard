@@ -1,5 +1,5 @@
 import pandas as pd
-from config import BASE_MMR, PLAYERS
+from config import BASE_MMR
 
 def prepare_match_table(table):
     display_rows = []
