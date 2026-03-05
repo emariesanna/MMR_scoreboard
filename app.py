@@ -34,7 +34,7 @@ def plot_line_chart(df_wide, x_col, y_cols, player_colors, vline_x_values=None, 
 
     chart = alt.Chart(df_long).mark_line(point=False).encode(
         x=x_axis,
-        y=alt.Y("Value:Q", title="", axis=alt.Axis(grid=True)),
+        y=alt.Y("Value:Q", title="", axis=alt.Axis(grid=True), scale=alt.Scale(zero=False)),
         color=alt.Color("Player:N", scale=alt.Scale(domain=domain_colors, range=range_colors)),
         tooltip=[alt.Tooltip(f"{x_col}:Q", title=x_col), alt.Tooltip("Player:N"), alt.Tooltip("Value:Q")]
     )
