@@ -6,6 +6,7 @@ from datetime import date
 from config import SHEETS_RL, SHEETS_MK, SHEETS_FIFA, MATCH_COL, MK_POSITION_COLS, MK_MATCH_COL
 from gsheets import read_sheet_df, append_match, append_mk_race, get_game_players, append_player, read_players_df
 from engine import get_table
+from engine_fifa import get_fifa_table
 from engine_mk import get_mk_table
 from presenter import prepare_match_table, prepare_leaderboard, prepare_mmr_history, prepare_daily_mmr_delta_history, prepare_uncertainty_history, prepare_winrate_matrices, prepare_date_changes
 from presenter_mk import prepare_mk_match_table, prepare_mk_leaderboard, prepare_mk_mmr_history, prepare_mk_daily_mmr_delta_history, prepare_mk_date_changes, prepare_mk_avg_position
@@ -391,13 +392,17 @@ def render_fifa():
                         st.rerun()
 
         with st.form("new_fifa_match_form"):
-            col_date, col_extra = st.columns([1, 3])
+            col_date, col_extra1, col_extra2 = st.columns([1, 1, 1])
 
             with col_date:
                 input_date = st.date_input("Date", date.today())
 
-            with col_extra:
-                input_overtime = st.checkbox("Extra Time / Penalties?")
+            with col_extra1:
+                input_overtime = st.checkbox("Extra Time?")
+
+            with col_extra2:
+                input_penalties = st.checkbox("Penalties?")
+
 
             col_home, col_away = st.columns(2)
 
@@ -422,6 +427,7 @@ def render_fifa():
                     index=9,
                     key="fifa_stars_home"
                 )
+                red_home = st.checkbox("Home Red Card?", key="fifa_red_home")
 
             with col_away:
                 st.warning("✈️ AWAY")
@@ -442,6 +448,7 @@ def render_fifa():
                     index=9,
                     key="fifa_stars_away"
                 )
+                red_away = st.checkbox("Away Red Card?", key="fifa_red_away")
 
             submitted = st.form_submit_button("REGISTER MATCH", width="stretch")
 
@@ -450,6 +457,8 @@ def render_fifa():
                     st.error("Select both players!")
                 elif sel_home == sel_away:
                     st.error("Home and Away players must be different!")
+                elif input_penalties and not input_overtime:
+                    st.error("A penalties match must also have extra time!")
                 elif score_home == score_away and not input_overtime:
                     st.error("If the score is a draw, check 'Extra Time / Penalties'!")
                 else:
@@ -474,6 +483,8 @@ def render_fifa():
                         input_overtime,
                         stars_home,
                         stars_away,
+                        red_home,
+                        red_away
                     ]
 
                     append_match(selected_sheet, row_values)
@@ -488,7 +499,7 @@ def render_fifa():
             st.info("No matches recorded yet. Go to 'Add Match' to get started!")
         return
 
-    table = get_table(selected_sheet)
+    table = get_fifa_table(selected_sheet)
 
     # --- TAB 1: MATCH HISTORY ---
     with tab1:
