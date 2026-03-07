@@ -6,7 +6,7 @@ from gsheets import read_sheet_df
 
 from config import BASE_MMR, BASE_MMR_DELTA, BASE_UNCERTAINTY, BLUE_SCORE_COL, BLUE_TEAM_COLS, DATE_COL, GAMMA, GOAL_DIFFERENCE_FACTOR, K_FACTOR, MMR_DECAY_PER_DAY, ORANGE_SCORE_COL, ORANGE_TEAM_COLS, OVERTIME_COL, UNCERTAINTY_DECAY, UNCERTAINTY_INCREASE
 
-def get_table(sheet_name):
+def get_RL_table(sheet_name):
     # table structure:
     # {
     #   "Date": str,                            # Match date (es. "05-Mar-24")

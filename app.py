@@ -3,14 +3,14 @@ import pandas as pd
 import altair as alt
 from datetime import date
 
-from config import SHEETS_RL, SHEETS_MK, SHEETS_FIFA, MATCH_COL, MK_POSITION_COLS, MK_MATCH_COL
+from config import SHEETS_RL, SHEETS_MK, SHEETS_FIFA, MATCH_COL, MK_POSITION_COLS, MK_MATCH_COL, FIFA_MATCH_COL
 from gsheets import read_sheet_df, append_match, append_mk_race, get_game_players, append_player, read_players_df
-from engine import get_table
+from engine_rl import get_RL_table
 from engine_fifa import get_fifa_table
 from engine_mk import get_mk_table
-from presenter import prepare_match_table, prepare_leaderboard, prepare_mmr_history, prepare_daily_mmr_delta_history, prepare_uncertainty_history, prepare_winrate_matrices, prepare_date_changes
+from presenter_rl import prepare_match_table, prepare_leaderboard, prepare_mmr_history, prepare_daily_mmr_delta_history, prepare_uncertainty_history, prepare_winrate_matrices, prepare_date_changes
 from presenter_mk import prepare_mk_match_table, prepare_mk_leaderboard, prepare_mk_mmr_history, prepare_mk_daily_mmr_delta_history, prepare_mk_date_changes, prepare_mk_avg_position
-
+from presenter_fifa import prepare_fifa_match_table, prepare_fifa_leaderboard, prepare_fifa_mmr_history, prepare_fifa_daily_mmr_delta_history, prepare_fifa_uncertainty_history, prepare_fifa_winrate_matrices, prepare_fifa_date_changes
 
 def style_winrate(df_val, df_cnt):
     df_text = df_val.copy().astype(object)
@@ -161,7 +161,7 @@ def render_rl():
             st.info(f"No matches recorded in {selected_sheet}. Go to 'Add Match' to get started!")
         return
 
-    table = get_table(selected_sheet)
+    table = get_RL_table(selected_sheet)
 
     # --- TAB 1: MATCH HISTORY ---
     with tab1:
@@ -392,7 +392,7 @@ def render_fifa():
                         st.rerun()
 
         with st.form("new_fifa_match_form"):
-            col_date, col_extra1, col_extra2 = st.columns([1, 1, 1])
+            col_date, col_extra1, col_extra2, col_extra3 = st.columns([1, 1, 1, 1])
 
             with col_date:
                 input_date = st.date_input("Date", date.today())
@@ -403,6 +403,13 @@ def render_fifa():
             with col_extra2:
                 input_penalties = st.checkbox("Penalties?")
 
+            with col_extra3:
+                winner = st.selectbox(
+                    "Winner",
+                    options=["Draw", "Home", "Away"],
+                    index=0,
+                    key="fifa_winner"
+                )
 
             col_home, col_away = st.columns(2)
 
@@ -459,12 +466,18 @@ def render_fifa():
                     st.error("Home and Away players must be different!")
                 elif input_penalties and not input_overtime:
                     st.error("A penalties match must also have extra time!")
-                elif score_home == score_away and not input_overtime:
-                    st.error("If the score is a draw, check 'Extra Time / Penalties'!")
+                elif input_penalties and score_home != score_away:
+                    st.error("A penalties match must have a tied score!")
+                elif score_home != score_away and winner == "Draw":
+                    st.error("A non-draw score cannot have 'Draw' as winner!")
+                elif score_home == score_away and not input_overtime and not input_penalties and winner != "Draw":
+                    st.error("If the score is tied and there is no extra time/penalties, the winner must be Draw!")
+                elif input_penalties and winner == "Draw":
+                    st.error("A penalties match must have Home or Away as winner!")
                 else:
                     last_id = (
-                        df_matches[MATCH_COL].max()
-                        if not df_matches.empty and MATCH_COL in df_matches
+                        df_matches[FIFA_MATCH_COL].max()
+                        if not df_matches.empty and FIFA_MATCH_COL in df_matches
                         else 0
                     )
 
@@ -476,15 +489,17 @@ def render_fifa():
                     row_values = [
                         str(input_date),
                         new_id,
-                        sel_home, "", "", "",          # Blue_1..4
+                        sel_home, "", "", "",
                         int(score_home),
                         int(score_away),
-                        sel_away, "", "", "",          # Orange_1..4
+                        sel_away, "", "", "",
                         input_overtime,
+                        winner,
+                        input_penalties,
                         stars_home,
                         stars_away,
                         red_home,
-                        red_away
+                        red_away,
                     ]
 
                     append_match(selected_sheet, row_values)
@@ -505,7 +520,7 @@ def render_fifa():
     with tab1:
         st.subheader("Match History")
         st.dataframe(
-            prepare_match_table(table),
+            prepare_fifa_match_table(table),
             width="stretch",
             hide_index=True
         )
@@ -514,9 +529,9 @@ def render_fifa():
     with tab2:
         st.subheader("Leaderboard & Stats")
 
-        date_changes = prepare_date_changes(table)
+        date_changes = prepare_fifa_date_changes(table)
 
-        df_mmr = prepare_mmr_history(table)
+        df_mmr = prepare_fifa_mmr_history(table)
         st.markdown("#### MMR History (match by match)")
         plot_line_chart(
             df_mmr,
@@ -526,7 +541,7 @@ def render_fifa():
             vline_x_values=date_changes
         )
 
-        df_unc = prepare_uncertainty_history(table)
+        df_unc = prepare_fifa_uncertainty_history(table)
         if df_unc is not None:
             st.markdown("#### Uncertainty History")
             plot_line_chart(
@@ -539,7 +554,7 @@ def render_fifa():
         col_leaderboard, col_daily = st.columns(2)
 
         with col_leaderboard:
-            df_lb = prepare_leaderboard(table)
+            df_lb = prepare_fifa_leaderboard(table)
             st.markdown("#### Current MMR")
 
             domain_colors = [p for p in df_lb["Player"] if p in fifa_colors]
@@ -559,7 +574,7 @@ def render_fifa():
             st.altair_chart(chart, width="stretch")
 
         with col_daily:
-            df_daily, last_date = prepare_daily_mmr_delta_history(table)
+            df_daily, last_date = prepare_fifa_daily_mmr_delta_history(table)
             st.markdown(f"#### MMR Delta - Last Session ({last_date})")
 
             if df_daily is not None:
@@ -582,7 +597,7 @@ def render_fifa():
             "- **Head-to-Head matrix**: row player's win rate against column player"
         )
 
-        _, df_ag, _, cnt_ag = prepare_winrate_matrices(table)
+        df_ag, cnt_ag = prepare_fifa_winrate_matrices(table)
 
         if df_ag is not None:
             st.dataframe(style_winrate(df_ag, cnt_ag))
