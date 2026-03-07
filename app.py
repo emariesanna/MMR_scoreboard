@@ -370,12 +370,16 @@ def render_fifa():
         with st.expander("➕ Add a new player"):
             with st.form("add_fifa_player_form"):
                 col_pname, col_pcolor = st.columns([2, 1])
+
                 with col_pname:
                     new_fifa_pname = st.text_input("Player name:", key="new_fifa_pname")
+
                 with col_pcolor:
                     new_fifa_pcolor = st.color_picker("Color:", "#aaaaaa", key="new_fifa_pcolor")
+
                 if st.form_submit_button("Add to list"):
                     _name = new_fifa_pname.strip()
+
                     if not _name:
                         st.error("Enter a player name!")
                     elif _name in fifa_players:
@@ -388,24 +392,58 @@ def render_fifa():
 
         with st.form("new_fifa_match_form"):
             col_date, col_extra = st.columns([1, 3])
+
             with col_date:
                 input_date = st.date_input("Date", date.today())
+
             with col_extra:
                 input_overtime = st.checkbox("Extra Time / Penalties?")
 
             col_home, col_away = st.columns(2)
 
+            star_options = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
+
             with col_home:
                 st.info("🏠 HOME")
-                sel_home = st.selectbox("Home Player", options=[""] + sorted(fifa_players), key="fifa_home")
-                score_home = st.number_input("Home Goals", min_value=0, step=1, key="fifa_s_home")
+                sel_home = st.selectbox(
+                    "Home Player",
+                    options=[""] + sorted(fifa_players),
+                    key="fifa_home"
+                )
+                score_home = st.number_input(
+                    "Home Goals",
+                    min_value=0,
+                    step=1,
+                    key="fifa_s_home"
+                )
+                stars_home = st.selectbox(
+                    "Home Stars",
+                    options=star_options,
+                    index=9,
+                    key="fifa_stars_home"
+                )
 
             with col_away:
                 st.warning("✈️ AWAY")
-                sel_away = st.selectbox("Away Player", options=[""] + sorted(fifa_players), key="fifa_away")
-                score_away = st.number_input("Away Goals", min_value=0, step=1, key="fifa_s_away")
+                sel_away = st.selectbox(
+                    "Away Player",
+                    options=[""] + sorted(fifa_players),
+                    key="fifa_away"
+                )
+                score_away = st.number_input(
+                    "Away Goals",
+                    min_value=0,
+                    step=1,
+                    key="fifa_s_away"
+                )
+                stars_away = st.selectbox(
+                    "Away Stars",
+                    options=star_options,
+                    index=9,
+                    key="fifa_stars_away"
+                )
 
-            submitted = st.form_submit_button("REGISTER MATCH", width='stretch')
+            submitted = st.form_submit_button("REGISTER MATCH", width="stretch")
 
             if submitted:
                 if not sel_home or not sel_away:
@@ -415,20 +453,29 @@ def render_fifa():
                 elif score_home == score_away and not input_overtime:
                     st.error("If the score is a draw, check 'Extra Time / Penalties'!")
                 else:
-                    last_id = df_matches[MATCH_COL].max() if not df_matches.empty and MATCH_COL in df_matches else 0
+                    last_id = (
+                        df_matches[MATCH_COL].max()
+                        if not df_matches.empty and MATCH_COL in df_matches
+                        else 0
+                    )
+
                     if pd.isna(last_id):
                         last_id = 0
+
                     new_id = int(last_id) + 1
 
                     row_values = [
                         str(input_date),
                         new_id,
-                        sel_home, "", "", "",   # Blue_1..4
+                        sel_home, "", "", "",          # Blue_1..4
                         int(score_home),
                         int(score_away),
-                        sel_away, "", "", "",   # Orange_1..4
+                        sel_away, "", "", "",          # Orange_1..4
                         input_overtime,
+                        stars_home,
+                        stars_away,
                     ]
+
                     append_match(selected_sheet, row_values)
                     read_sheet_df.clear()
                     st.success(f"Match {new_id} registered!")
@@ -446,7 +493,11 @@ def render_fifa():
     # --- TAB 1: MATCH HISTORY ---
     with tab1:
         st.subheader("Match History")
-        st.dataframe(prepare_match_table(table), width='stretch', hide_index=True)
+        st.dataframe(
+            prepare_match_table(table),
+            width="stretch",
+            hide_index=True
+        )
 
     # --- TAB 2: CHARTS ---
     with tab2:
@@ -456,34 +507,59 @@ def render_fifa():
 
         df_mmr = prepare_mmr_history(table)
         st.markdown("#### MMR History (match by match)")
-        plot_line_chart(df_mmr, "Match", [c for c in df_mmr.columns if c != "Match"], fifa_colors, vline_x_values=date_changes)
+        plot_line_chart(
+            df_mmr,
+            "Match",
+            [c for c in df_mmr.columns if c != "Match"],
+            fifa_colors,
+            vline_x_values=date_changes
+        )
 
         df_unc = prepare_uncertainty_history(table)
         if df_unc is not None:
             st.markdown("#### Uncertainty History")
-            plot_line_chart(df_unc, "Match", [c for c in df_unc.columns if c != "Match"], fifa_colors)
+            plot_line_chart(
+                df_unc,
+                "Match",
+                [c for c in df_unc.columns if c != "Match"],
+                fifa_colors
+            )
 
         col_leaderboard, col_daily = st.columns(2)
 
         with col_leaderboard:
             df_lb = prepare_leaderboard(table)
             st.markdown("#### Current MMR")
+
             domain_colors = [p for p in df_lb["Player"] if p in fifa_colors]
             range_colors = [fifa_colors[p] for p in domain_colors]
+
             chart = alt.Chart(df_lb).mark_bar().encode(
                 x=alt.X("Player", sort="-y"),
                 y="MMR",
-                color=alt.Color("Player", scale=alt.Scale(domain=domain_colors, range=range_colors), legend=None),
+                color=alt.Color(
+                    "Player",
+                    scale=alt.Scale(domain=domain_colors, range=range_colors),
+                    legend=None
+                ),
                 tooltip=["Player", "MMR"]
             )
-            st.altair_chart(chart, width='stretch')
+
+            st.altair_chart(chart, width="stretch")
 
         with col_daily:
             df_daily, last_date = prepare_daily_mmr_delta_history(table)
             st.markdown(f"#### MMR Delta - Last Session ({last_date})")
+
             if df_daily is not None:
                 n_matches = int(df_daily["Match"].max())
-                plot_line_chart(df_daily, "Match", [c for c in df_daily.columns if c != "Match"], fifa_colors, tick_values=list(range(n_matches + 1)))
+                plot_line_chart(
+                    df_daily,
+                    "Match",
+                    [c for c in df_daily.columns if c != "Match"],
+                    fifa_colors,
+                    tick_values=list(range(n_matches + 1))
+                )
             else:
                 st.info("No matches played on the last recorded date.")
 
