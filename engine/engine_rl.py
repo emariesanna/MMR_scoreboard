@@ -65,6 +65,9 @@ def get_RL_table(sheet_name):
         # Process inactivity effects (uncertainty increase and MMR decay)
         decay_delta = inactivity.process_date_change(date_val)
         
+        # Process date change for uncertainty (snapshot at beginning of day)
+        uncertainty.process_date_change(date_val)
+        
         # Calculate decay inflation (separate from uncertainty inflation)
         decay_inflation_delta = inflation.apply_inflation_correction(sum(decay_delta.values()))
 
