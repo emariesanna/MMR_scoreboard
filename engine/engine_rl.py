@@ -81,6 +81,8 @@ def get_RL_table(sheet_name):
         blue_win = blue_score > orange_score
         match_delta = team_match.apply_match_outcome(blue_team, orange_team, blue_win, blue_win_prob, overtime)
 
+        print(match_delta)
+
         # Apply goal difference bonus/penalty
         goal_difference_delta = goal_diff.apply_goal_difference(
             blue_team, orange_team, blue_score, orange_score, match_delta, overtime

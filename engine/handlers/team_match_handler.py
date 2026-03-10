@@ -59,7 +59,7 @@ class FifaTeamMatchHandler(TeamMatchHandler):
         """ Draw is represented with a home_won value of 0.5 """
         match_delta = {}
 
-        match_delta[home_player] = self.base_mmr_delta * (home_won - home_win_prob)
+        match_delta[home_player] = self.base_mmr_delta * (home_won - home_win_prob) * 2 # Full delta at 50% win prob
 
         if penalties:
             match_delta[home_player] *= 0.5
@@ -94,7 +94,7 @@ class RLTeamMatchHandler(TeamMatchHandler):
         orange_size = len(orange_team)
         
         # Base delta calculation
-        blue_base_delta = self.base_mmr_delta * (blue_won - blue_win_prob)
+        blue_base_delta = self.base_mmr_delta * (blue_won - blue_win_prob) * 2 # Full delta at 50% win prob
         
         # Reduce delta if overtime
         if overtime:

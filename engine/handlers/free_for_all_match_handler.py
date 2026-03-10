@@ -54,7 +54,7 @@ class FreeForAllMatchHandler:
                 expected_ij = 1.0 / (1.0 + 10.0 ** ((mmr_j - mmr_i) / self.gamma))
                 
                 # Delta contribution from this comparison, normalized by (n-1)
-                delta_i += self.base_mmr_delta * (score_ij - expected_ij) / (n - 1)
+                delta_i += self.base_mmr_delta * (score_ij - expected_ij) * 2/ (n - 1) # Full delta at 50% win prob
             
             pairwise_delta[player_i] = delta_i
             self.last_mmr[player_i] += delta_i
