@@ -181,7 +181,7 @@ def render_rl():
         df_unc = prepare_uncertainty_history(table)
         if df_unc is not None:
             st.markdown("#### Uncertainty History")
-            plot_line_chart(df_unc, "Match", [c for c in df_unc.columns if c != "Match"], rl_colors)
+            plot_line_chart(df_unc, "Match", [c for c in df_unc.columns if c != "Match"], rl_colors, vline_x_values=date_changes)
 
         col_leaderboard, col_daily = st.columns(2)
 
@@ -576,7 +576,8 @@ def render_fifa():
                 df_unc,
                 "Match",
                 [c for c in df_unc.columns if c != "Match"],
-                fifa_colors
+                fifa_colors,
+                vline_x_values=date_changes
             )
 
         col_leaderboard, col_daily = st.columns(2)
