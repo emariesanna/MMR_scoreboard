@@ -14,7 +14,7 @@ from gsheets import read_sheet_df
 from engine.handlers import (
     InactivityHandler,
     UncertaintyHandler,
-    InflationHandler,
+    EqualInflationHandler,
     FifaTeamMatchHandler,
     GoalDifferenceHandler,
 )
@@ -57,7 +57,7 @@ def get_fifa_table(sheet_name: str) -> list:
     inactivity = InactivityHandler(active_players, last_mmr, uncertainty_factors, last_date_mmr, 
                                    FIFA_UNCERTAINTY_INCREASE, FIFA_MMR_DECAY_PER_DAY, FIFA_BASE_UNCERTAINTY)
     uncertainty = UncertaintyHandler(last_mmr, uncertainty_factors, FIFA_UNCERTAINTY_DECAY)
-    inflation = InflationHandler(active_players, last_mmr)
+    inflation = EqualInflationHandler(active_players, last_mmr)
     team_match = FifaTeamMatchHandler(last_mmr, last_date_mmr, FIFA_BASE_MMR_DELTA, FIFA_GAMMA, FIFA_STAR_RATING_FACTOR)
     goal_diff = GoalDifferenceHandler(last_mmr, FIFA_GOAL_DIFFERENCE_FACTOR)
 

@@ -10,7 +10,7 @@ from gsheets import read_sheet_df
 from engine.handlers import (
     InactivityHandler,
     UncertaintyHandler,
-    InflationHandler,
+    EqualInflationHandler,
     FreeForAllMatchHandler,
 )
 from utils import format_date, round_dict_values
@@ -40,7 +40,7 @@ def get_mk_table(sheet_name: str) -> list:
     inactivity = InactivityHandler(active_players, last_mmr, uncertainty_factors, last_date_mmr, 
                                    MK_UNCERTAINTY_INCREASE, MK_MMR_DECAY_PER_DAY, MK_BASE_UNCERTAINTY)
     uncertainty = UncertaintyHandler(last_mmr, uncertainty_factors, MK_UNCERTAINTY_DECAY)
-    inflation = InflationHandler(active_players, last_mmr)
+    inflation = EqualInflationHandler(active_players, last_mmr)
     ffa_match = FreeForAllMatchHandler(last_mmr, last_date_mmr, MK_BASE_MMR_DELTA, MK_GAMMA)
 
     for _, row in read_sheet_df(sheet_name).iterrows():

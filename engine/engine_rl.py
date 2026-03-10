@@ -3,7 +3,7 @@ from collections import defaultdict
 from engine.handlers.team_match_handler import RLTeamMatchHandler
 from gsheets import read_sheet_df
 from engine.handlers import (
-    InactivityHandler, UncertaintyHandler, InflationHandler, GoalDifferenceHandler
+    InactivityHandler, UncertaintyHandler, EqualInflationHandler, GoalDifferenceHandler
 )
 from utils import format_date, round_dict_values
 from config import (
@@ -47,7 +47,7 @@ def get_RL_table(sheet_name):
     inactivity = InactivityHandler(active_players, last_mmr, uncertainty_factors, last_date_mmr, 
                                    RL_UNCERTAINTY_INCREASE, RL_MMR_DECAY_PER_DAY, RL_BASE_UNCERTAINTY)
     uncertainty = UncertaintyHandler(last_mmr, uncertainty_factors, RL_UNCERTAINTY_DECAY[sheet_name])
-    inflation = InflationHandler(active_players, last_mmr)
+    inflation = EqualInflationHandler(active_players, last_mmr)
     team_match = RLTeamMatchHandler(last_mmr, last_date_mmr, RL_BASE_MMR_DELTA, RL_GAMMA, RL_K_FACTOR)
     goal_diff = GoalDifferenceHandler(last_mmr, RL_GOAL_DIFFERENCE_FACTOR[sheet_name])
 
