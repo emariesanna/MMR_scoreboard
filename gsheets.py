@@ -4,7 +4,7 @@ import streamlit as st
 from google.oauth2.service_account import Credentials
 
 import os
-from config import SPREADSHEET_ID, DATE_COL, OVERTIME_COL, MK_DATE_COL, ROOT
+from config import SPREADSHEET_ID, ROOT
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -42,17 +42,6 @@ def read_sheet_df(sheet_name: str) -> pd.DataFrame:
     if not data:
         return pd.DataFrame()
     df = pd.DataFrame(data)
-    # Parse date column for RL sheets
-    if DATE_COL in df.columns:
-        df[DATE_COL] = pd.to_datetime(df[DATE_COL], format="ISO8601")
-    # Parse date column for MK sheets
-    elif MK_DATE_COL in df.columns:
-        df[MK_DATE_COL] = pd.to_datetime(df[MK_DATE_COL], format="ISO8601")
-    # Parse overtime boolean
-    if OVERTIME_COL in df.columns:
-        df[OVERTIME_COL] = df[OVERTIME_COL].map(
-            lambda v: True if v in (True, 1, "TRUE", "True", "true", "1") else False
-        )
     return df
 
 
@@ -73,7 +62,6 @@ def append_mk_race(sheet_name: str, row_values: list) -> None:
 
 
 _PLAYERS_SHEET = "Players"
-
 
 @st.cache_data(ttl=60)
 def read_players_df() -> pd.DataFrame:

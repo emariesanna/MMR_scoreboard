@@ -3,13 +3,13 @@ import pandas as pd
 import altair as alt
 from datetime import date
 
-from config import SHEETS_RL, SHEETS_MK, SHEETS_FIFA, MATCH_COL, MK_POSITION_COLS, MK_MATCH_COL, FIFA_MATCH_COL
+from config import RL_SHEETS, MK_SHEET, FIFA_SHEET, RL_MATCH_COL, MK_MATCH_COL, FIFA_MATCH_COL
 from gsheets import read_sheet_df, append_match, append_mk_race, get_game_players, append_player, read_players_df
 from engine.engine_rl import get_RL_table
 from engine.engine_fifa import get_fifa_table
 from engine.engine_mk import get_mk_table
 from presenter.presenter_rl import prepare_match_table, prepare_leaderboard, prepare_mmr_history, prepare_daily_mmr_delta_history, prepare_uncertainty_history, prepare_winrate_matrices, prepare_date_changes
-from presenter.presenter_mk import prepare_mk_match_table, prepare_mk_leaderboard, prepare_mk_mmr_history, prepare_mk_daily_mmr_delta_history, prepare_mk_date_changes, prepare_mk_avg_position
+from presenter.presenter_mk import prepare_mk_match_table, prepare_mk_leaderboard, prepare_mk_mmr_history, prepare_mk_daily_mmr_delta_history, prepare_mk_date_changes, prepare_mk_avg_position, prepare_mk_uncertainty_history, prepare_mk_winrate_matrices
 from presenter.presenter_fifa import prepare_fifa_match_table, prepare_fifa_leaderboard, prepare_fifa_mmr_history, prepare_fifa_daily_mmr_delta_history, prepare_fifa_uncertainty_history, prepare_fifa_winrate_matrices, prepare_fifa_date_changes
 
 def style_winrate(df_val, df_cnt):
@@ -66,9 +66,9 @@ def render_interface():
 
 def render_rl():
     st.sidebar.title("Game Mode")
-    sheet_labels = [s.removeprefix("RL_") for s in SHEETS_RL]
+    sheet_labels = [s.removeprefix("RL_") for s in RL_SHEETS]
     selected_label = st.sidebar.radio("Select Mode", sheet_labels)
-    selected_sheet = SHEETS_RL[sheet_labels.index(selected_label)]
+    selected_sheet = RL_SHEETS[sheet_labels.index(selected_label)]
 
     rl_players, rl_colors = get_game_players("Rocket League")
     df_matches = read_sheet_df(selected_sheet)
@@ -129,7 +129,7 @@ def render_rl():
                 elif score_blue == score_orange:
                     st.error("Draws don't exist in Rocket League!")
                 else:
-                    last_id = df_matches[MATCH_COL].max() if not df_matches.empty and MATCH_COL in df_matches else 0
+                    last_id = df_matches[RL_MATCH_COL].max() if not df_matches.empty and RL_MATCH_COL in df_matches else 0
                     if pd.isna(last_id):
                         last_id = 0
                     new_id = int(last_id) + 1
@@ -230,7 +230,7 @@ def render_rl():
 
 
 def render_mk():
-    selected_sheet = SHEETS_MK[0]  # single MK sheet for now
+    selected_sheet = MK_SHEET
 
     mk_players, mk_colors = get_game_players("Mario Kart")
     df_races = read_sheet_df(selected_sheet)
@@ -353,9 +353,22 @@ def render_mk():
         )
         st.altair_chart(chart_avg, width='stretch')
 
+        st.markdown("---")
+        df_unc = prepare_mk_uncertainty_history(table)
+        if not df_unc.empty:
+            st.markdown("#### Uncertainty History")
+            plot_line_chart(df_unc, "Race", [c for c in df_unc.columns if c != "Race"], mk_colors, vline_x_values=date_changes)
+
+        st.markdown("---")
+        st.subheader("Head-to-Head Winrates")
+        df_ag, cnt_ag = prepare_mk_winrate_matrices(table)
+        if not df_ag.empty:
+            st.markdown("**Against each other** (% of matchups won)")
+            st.dataframe(style_winrate(df_ag, cnt_ag))
+
 
 def render_fifa():
-    selected_sheet = SHEETS_FIFA[0]
+    selected_sheet = FIFA_SHEET
 
     fifa_players, fifa_colors = get_game_players("FIFA")
     df_matches = read_sheet_df(selected_sheet)
@@ -392,24 +405,7 @@ def render_fifa():
                         st.rerun()
 
         with st.form("new_fifa_match_form"):
-            col_date, col_extra1, col_extra2, col_extra3 = st.columns([1, 1, 1, 1])
-
-            with col_date:
-                input_date = st.date_input("Date", date.today())
-
-            with col_extra1:
-                input_overtime = st.checkbox("Extra Time?")
-
-            with col_extra2:
-                input_penalties = st.checkbox("Penalties?")
-
-            with col_extra3:
-                winner = st.selectbox(
-                    "Winner",
-                    options=["Draw", "Home", "Away"],
-                    index=0,
-                    key="fifa_winner"
-                )
+            input_date = st.date_input("Date", date.today())
 
             col_home, col_away = st.columns(2)
 
@@ -428,13 +424,19 @@ def render_fifa():
                     step=1,
                     key="fifa_s_home"
                 )
+                penalties_home = st.number_input(
+                    "Home Penalties Goals",
+                    min_value=0,
+                    step=1,
+                    key="fifa_pen_home",
+                    help="Goals scored in penalty shootout (0 if no penalties)"
+                )
                 stars_home = st.selectbox(
-                    "Home Stars",
+                    "Home Team Stars",
                     options=star_options,
                     index=9,
                     key="fifa_stars_home"
                 )
-                red_home = st.checkbox("Home Red Card?", key="fifa_red_home")
 
             with col_away:
                 st.warning("✈️ AWAY")
@@ -449,13 +451,19 @@ def render_fifa():
                     step=1,
                     key="fifa_s_away"
                 )
+                penalties_away = st.number_input(
+                    "Away Penalties Goals",
+                    min_value=0,
+                    step=1,
+                    key="fifa_pen_away",
+                    help="Goals scored in penalty shootout (0 if no penalties)"
+                )
                 stars_away = st.selectbox(
-                    "Away Stars",
+                    "Away Team Stars",
                     options=star_options,
                     index=9,
                     key="fifa_stars_away"
                 )
-                red_away = st.checkbox("Away Red Card?", key="fifa_red_away")
 
             submitted = st.form_submit_button("REGISTER MATCH", width="stretch")
 
@@ -464,42 +472,62 @@ def render_fifa():
                     st.error("Select both players!")
                 elif sel_home == sel_away:
                     st.error("Home and Away players must be different!")
-                elif input_penalties and not input_overtime:
-                    st.error("A penalties match must also have extra time!")
-                elif input_penalties and score_home != score_away:
-                    st.error("A penalties match must have a tied score!")
-                elif score_home != score_away and winner == "Draw":
-                    st.error("A non-draw score cannot have 'Draw' as winner!")
-                elif score_home == score_away and not input_overtime and not input_penalties and winner != "Draw":
-                    st.error("If the score is tied and there is no extra time/penalties, the winner must be Draw!")
-                elif input_penalties and winner == "Draw":
-                    st.error("A penalties match must have Home or Away as winner!")
+                elif penalties_home != 0 or penalties_away != 0:
+                    # Penalty shootout validation
+                    if score_home != score_away:
+                        st.error("Penalty shootout can only happen when regular score is tied!")
+                    elif penalties_home == penalties_away:
+                        st.error("Penalty shootout must have a winner!")
+                    else:
+                        # Valid penalty shootout
+                        last_id = (
+                            df_matches[FIFA_MATCH_COL].max()
+                            if not df_matches.empty and FIFA_MATCH_COL in df_matches
+                            else 0
+                        )
+                        if pd.isna(last_id):
+                            last_id = 0
+                        new_id = int(last_id) + 1
+
+                        row_values = [
+                            str(input_date),
+                            new_id,
+                            sel_home,
+                            sel_away,
+                            int(score_home),
+                            int(score_away),
+                            int(penalties_home),
+                            int(penalties_away),
+                            float(stars_home),
+                            float(stars_away),
+                        ]
+
+                        append_match(selected_sheet, row_values)
+                        read_sheet_df.clear()
+                        st.success(f"Match {new_id} registered!")
+                        st.rerun()
                 else:
+                    # Regular match (no penalties)
                     last_id = (
                         df_matches[FIFA_MATCH_COL].max()
                         if not df_matches.empty and FIFA_MATCH_COL in df_matches
                         else 0
                     )
-
                     if pd.isna(last_id):
                         last_id = 0
-
                     new_id = int(last_id) + 1
 
                     row_values = [
                         str(input_date),
                         new_id,
-                        sel_home, "", "", "",
+                        sel_home,
+                        sel_away,
                         int(score_home),
                         int(score_away),
-                        sel_away, "", "", "",
-                        input_overtime,
-                        winner,
-                        input_penalties,
-                        stars_home,
-                        stars_away,
-                        red_home,
-                        red_away,
+                        0,  # Home Penalties Score
+                        0,  # Away Penalties Score
+                        float(stars_home),
+                        float(stars_away),
                     ]
 
                     append_match(selected_sheet, row_values)

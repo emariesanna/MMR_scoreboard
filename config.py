@@ -1,63 +1,67 @@
+# Google Sheets and authentication
 import os
-
-
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SPREADSHEET_ID = "1wL1uCTaW9OJd3kfllbMMrUJileGvQcnE6t6dtaR_9So"
 
-SHEETS_RL = ["RL_Carlcio", "RL_NFL", "RL_Canestro", "RL_Dropshot"]
-SHEETS_MK = ["MarioKart"]
-SHEETS_FIFA = ["FIFA"]
-
 # --- Rocket League ---
-DATE_COL = "Date"
-MATCH_COL = "Match ID"
-BLUE_TEAM_COLS = ["Blue_1", "Blue_2", "Blue_3", "Blue_4"]
-ORANGE_TEAM_COLS = ["Orange_1", "Orange_2", "Orange_3", "Orange_4"]
-BLUE_SCORE_COL = "Goal_Blue"
-ORANGE_SCORE_COL = "Goal_Orange"
-OVERTIME_COL = "Overtime"
-BASE_MMR = 1000
-GAMMA = 800
-K_FACTOR = 0.85
-BASE_MMR_DELTA = 25
-GOAL_DIFFERENCE_FACTOR = {"RL_Carlcio": 7, "RL_NFL": 70, "RL_Canestro": 7, "RL_Dropshot": 3, "FIFA": 5}
-BASE_UNCERTAINTY = 3.0
-UNCERTAINTY_DECAY = {"RL_Carlcio": 0.1, "RL_NFL": 0.25, "RL_Canestro": 0.25, "RL_Dropshot": 0.25, "FIFA": 0.15} # Per match
-UNCERTAINTY_INCREASE = 0.025 # Per day of inactivity
-MMR_DECAY_PER_DAY = 0.005 # Percentage of score to subtract from the player for each day without playing after reaching maximum uncertainty
+# DB Sheets
+RL_SHEETS = ["RL_Soccar", "RL_Gridiron", "RL_Hoops", "RL_Dropshot"]
+# DB columns
+RL_DATE_COL = "Date"
+RL_MATCH_COL = "Match ID"
+RL_BLUE_TEAM_COLS = ["Blue_1", "Blue_2", "Blue_3", "Blue_4"]
+RL_ORANGE_TEAM_COLS = ["Orange_1", "Orange_2", "Orange_3", "Orange_4"]
+RL_BLUE_SCORE_COL = "Goal_Blue"
+RL_ORANGE_SCORE_COL = "Goal_Orange"
+RL_OVERTIME_COL = "Overtime"
+# Hyperparameters
+RL_BASE_MMR = 1000
+RL_GAMMA = 800
+RL_K_FACTOR = 0.85
+RL_BASE_MMR_DELTA = 25
+RL_GOAL_DIFFERENCE_FACTOR = {"RL_Soccar": 7, "RL_Gridiron": 70, "RL_Hoops": 7, "RL_Dropshot": 3}
+RL_BASE_UNCERTAINTY = 3.0
+RL_UNCERTAINTY_DECAY = {"RL_Soccar": 0.1, "RL_Gridiron": 0.25, "RL_Hoops": 0.25, "RL_Dropshot": 0.25} # Per match
+RL_UNCERTAINTY_INCREASE = 0.025 # Per day of inactivity
+RL_MMR_DECAY_PER_DAY = 0.005 # Percentage of score to subtract from the player for each day without playing after reaching maximum uncertainty
 
 # --- Mario Kart ---
+# DB Sheets
+MK_SHEET = "MarioKart"
+# DB columns
 MK_DATE_COL = "Date"
 MK_MATCH_COL = "Match ID"
 MK_POSITION_COLS = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"]
+# Hyperparameters
 MK_BASE_MMR = 1000
-MK_GAMMA = 400          # ELO sensitivity for pairwise matchups
-MK_BASE_MMR_DELTA = 32  # Max delta per pairwise matchup
+MK_GAMMA = 800          # ELO sensitivity for pairwise matchups
+MK_BASE_MMR_DELTA = 25  # Max delta per pairwise matchup
 MK_BASE_UNCERTAINTY = 3.0
 MK_UNCERTAINTY_DECAY = 0.15   # Per race
 MK_UNCERTAINTY_INCREASE = 0.025  # Per day of inactivity
 MK_MMR_DECAY_PER_DAY = 0.005
 
 # --- FIFA ---
-
+# DB Sheets
+FIFA_SHEET = "FIFA"
+# DB columns
 FIFA_DATE_COL = "Date"
 FIFA_MATCH_COL = "Match ID"
-FIFA_HOME_TEAM_COLS = ["Blue_1"]
-FIFA_AWAY_TEAM_COLS = ["Orange_1"]
-FIFA_HOME_SCORE_COL = "Goal_Blue"
-FIFA_AWAY_SCORE_COL = "Goal_Orange"
-FIFA_OVERTIME_COL = "Overtime"
-FIFA_PENALTIES_COL = "Penalties"
-FIFA_WINNER_COL = "Winner"
-FIFA_STARS_HOME_COL = "Stars_home"
-FIFA_STARS_AWAY_COL = "Stars_away"
-FIFA_RED_HOME_COL = "Red_home"
-FIFA_RED_AWAY_COL = "Red_away"
+FIFA_HOME_PLAYER_COL = "Home Player"
+FIFA_AWAY_PLAYER_COL = "Away Player"
+FIFA_HOME_SCORE_COL = "Home Score"
+FIFA_AWAY_SCORE_COL = "Away Score"
+FIFA_HOME_PENALTIES_SCORE_COL = "Home Penalties Score"
+FIFA_AWAY_PENALTIES_SCORE_COL = "Away Penalties Score"
+FIFA_HOME_STARS_COL = "Home Stars"
+FIFA_AWAY_STARS_COL = "Away Stars"
+# Hyperparameters
 FIFA_BASE_MMR = 1000
-FIFA_BASE_MMR_DELTA = 30
-FIFA_BASE_UNCERTAINTY = 1.2
-FIFA_GAMMA = 400
-FIFA_MMR_DECAY_PER_DAY = 0.001
-FIFA_UNCERTAINTY_INCREASE = 0.01
-FIFA_UNCERTAINTY_DECAY = {"FIFA": 0.02}
-FIFA_GOAL_DIFFERENCE_FACTOR = {"FIFA": 5}
+FIFA_BASE_MMR_DELTA = 25
+FIFA_BASE_UNCERTAINTY = 3.0
+FIFA_GAMMA = 800
+FIFA_MMR_DECAY_PER_DAY = 0.005
+FIFA_UNCERTAINTY_INCREASE = 0.025
+FIFA_UNCERTAINTY_DECAY = 0.1
+FIFA_GOAL_DIFFERENCE_FACTOR = 6
+FIFA_STAR_RATING_FACTOR = 100 # Extra MMR difference per star difference

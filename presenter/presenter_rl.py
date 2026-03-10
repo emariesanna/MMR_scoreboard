@@ -1,9 +1,92 @@
 import pandas as pd
-from config import BASE_MMR
+from config import RL_BASE_MMR
+
+
+def expand_table_with_decay_rows(table):
+    """
+    Insert virtual decay rows before matches that have decay effects.
+    Returns expanded table with 'Is Decay Row' flag.
+    """
+    expanded = []
+    
+    for entry in table:
+        # Check if this match has decay effects
+        has_decay = any(entry.get("Decay Delta", {}).values())
+        
+        if has_decay:
+            # Calculate pre-match MMR (before match deltas were applied)
+            pre_match_mmr = {}
+            for player, total_mmr in entry["Total MMR"].items():
+                # Subtract match-related deltas to get state after decay but before match
+                match_related_delta = (
+                    entry.get("Match Delta", {}).get(player, 0) +
+                    entry.get("Goal Difference Delta", {}).get(player, 0) +
+                    entry.get("Uncertainty Delta", {}).get(player, 0) +
+                    entry.get("Uncertainty Inflation Delta", {}).get(player, 0)
+                )
+                pre_match_mmr[player] = total_mmr - match_related_delta
+            
+            # Create virtual decay row
+            decay_row_total_delta = {}
+            for player in entry["Total MMR"].keys():
+                decay_row_total_delta[player] = (
+                    entry.get("Decay Delta", {}).get(player, 0) +
+                    entry.get("Decay Inflation Delta", {}).get(player, 0)
+                )
+            
+            virtual_row = {
+                "Date": entry["Date"],
+                "Blue Team": [],
+                "Orange Team": [],
+                "Blue Score": None,
+                "Orange Score": None,
+                "Overtime": None,
+                "Blue Win Prob.": None,
+                "Orange Win Prob.": None,
+                "Uncertainty Factors": entry["Uncertainty Factors"].copy(),
+                "Match Delta": {},
+                "Goal Difference Delta": {},
+                "Uncertainty Delta": {},
+                "Decay Delta": entry["Decay Delta"].copy(),
+                "Decay Inflation Delta": entry["Decay Inflation Delta"].copy(),
+                "Uncertainty Inflation Delta": {},
+                "Total Delta": decay_row_total_delta,
+                "Total MMR": pre_match_mmr,
+                "Is Decay Row": True
+            }
+            expanded.append(virtual_row)
+            
+            # Add match row without decay (already shown in virtual row)
+            match_row = entry.copy()
+            match_row["Decay Delta"] = {}
+            match_row["Decay Inflation Delta"] = {}
+            match_row["Total Delta"] = {}
+            for player in entry["Total MMR"].keys():
+                match_row["Total Delta"][player] = (
+                    entry.get("Match Delta", {}).get(player, 0) +
+                    entry.get("Goal Difference Delta", {}).get(player, 0) +
+                    entry.get("Uncertainty Delta", {}).get(player, 0) +
+                    entry.get("Uncertainty Inflation Delta", {}).get(player, 0)
+                )
+            match_row["Is Decay Row"] = False
+            expanded.append(match_row)
+        else:
+            # No decay, just add the match as-is
+            match_row = entry.copy()
+            match_row["Is Decay Row"] = False
+            expanded.append(match_row)
+    
+    return expanded
+
 
 def prepare_match_table(table):
+    # Expand table with virtual decay rows
+    expanded_table = expand_table_with_decay_rows(table)
+    
     display_rows = []
-    for i, entry in enumerate(table, start=1):
+    # Filter out decay rows (virtual rows with no match data)
+    match_rows = [entry for entry in expanded_table if not entry.get("Is Decay Row", False)]
+    for i, entry in enumerate(match_rows, start=1):
         total_delta = entry["Total Delta"]
 
         def format_player(player):
@@ -47,29 +130,61 @@ def prepare_leaderboard(table):
 
 
 def prepare_mmr_history(table):
-    active_players = list(table[-1]["Total MMR"].keys())
-    current_mmr = {p: BASE_MMR for p in active_players}
+    # Expand table with virtual decay rows
+    expanded_table = expand_table_with_decay_rows(table)
+    
+    active_players = list(expanded_table[-1]["Total MMR"].keys())
+    current_mmr = {p: RL_BASE_MMR for p in active_players}
     history = [{"Match": 0, **current_mmr}]
 
-    for i, entry in enumerate(table, start=1):
+    match_counter = 0
+    for entry in expanded_table:
         current_mmr.update(entry["Total MMR"])
-        history.append({"Match": i, **current_mmr})
+        
+        if entry.get("Is Decay Row", False):
+            # Decay row gets a fractional position (e.g., 5.5 between match 5 and 6)
+            history.append({"Match": match_counter + 0.5, **current_mmr})
+        else:
+            # Regular match increments counter
+            match_counter += 1
+            history.append({"Match": match_counter, **current_mmr})
 
     return pd.DataFrame(history)
 
 
 def prepare_uncertainty_history(table):
-    active_players = set(table[-1]["Total MMR"].keys())
-    history = []
-    for i, entry in enumerate(table, start=1):
-        unc = {p: v for p, v in entry["Uncertainty Factors"].items() if p in active_players}
-        record = {"Match": i, **unc}
-        history.append(record)
+    # Expand table with virtual decay rows
+    expanded_table = expand_table_with_decay_rows(table)
+    
+    active_players = set(expanded_table[-1]["Total MMR"].keys())
+    
+    # Import base uncertainty
+    from config import RL_BASE_UNCERTAINTY
+    
+    # Start with Match 0 at base uncertainty for all players
+    initial_unc = {p: RL_BASE_UNCERTAINTY for p in active_players}
+    history = [{"Match": 0, **initial_unc}]
+    match_counter = 0
+    
+    for entry in expanded_table:
+        # Initialize all players with base uncertainty
+        unc = {p: RL_BASE_UNCERTAINTY for p in active_players}
+        # Update with actual pre-match values for players who were already active
+        unc.update({p: v for p, v in entry["Uncertainty Factors"].items() if p in active_players})
+        
+        if entry.get("Is Decay Row", False):
+            # Decay row gets fractional position
+            history.append({"Match": match_counter + 0.5, **unc})
+        else:
+            # Regular match increments counter
+            match_counter += 1
+            history.append({"Match": match_counter, **unc})
 
     return pd.DataFrame(history)
 
 
 def prepare_daily_mmr_delta_history(table):
+    # Original table has no decay rows - they're only in expanded table
     last_date = table[-1]["Date"]
     last_day = [e for e in table if e["Date"] == last_date]
 
@@ -97,6 +212,7 @@ def prepare_winrate_matrices(table):
     global_m   = {p: 0 for p in active_players}
     global_w   = {p: 0 for p in active_players}
 
+    # Original table has no decay rows - they're only in expanded table
     for entry in table:
         blue = entry["Blue Team"]
         orange = entry["Orange Team"]
@@ -160,5 +276,29 @@ def prepare_winrate_matrices(table):
 
 
 def prepare_date_changes(table):
-    return [i + 0.5 for i in range(1, len(table)) if table[i]["Date"] != table[i-1]["Date"]]
+    """Returns list of match positions where date changes occur (for dashed lines).
+    Places lines both at the last match of a date AND at decay rows."""
+    expanded_table = expand_table_with_decay_rows(table)
+    
+    date_change_positions = []
+    match_counter = 0
+    last_date = None
+    
+    for i, entry in enumerate(expanded_table):
+        current_date = entry["Date"]
+        
+        if entry.get("Is Decay Row", False):
+            # Add line at decay row position (between matches)
+            date_change_positions.append(match_counter + 0.5)
+        else:
+            # Regular match
+            if last_date is not None and current_date != last_date:
+                # Date changed: add line at the previous match (end of old date)
+                if match_counter > 0:  # Make sure we have at least one match
+                    date_change_positions.append(float(match_counter))
+            
+            match_counter += 1
+            last_date = current_date
+    
+    return sorted(set(date_change_positions))  # Remove duplicates and sort
 

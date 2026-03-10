@@ -9,7 +9,7 @@ google-auth
 # python -m venv venv
 # .\venv\Scripts\activate
 # pip install -r requirements.txt
-# streamlit run app_rocket.py
+# streamlit run main.py
 
 
 # deactivate
