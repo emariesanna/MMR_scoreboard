@@ -23,7 +23,9 @@ RL_GOAL_DIFFERENCE_FACTOR = {"RL_Soccar": 7, "RL_Gridiron": 70, "RL_Hoops": 7, "
 RL_BASE_UNCERTAINTY = 3.0
 RL_UNCERTAINTY_DECAY = {"RL_Soccar": 0.1, "RL_Gridiron": 0.25, "RL_Hoops": 0.25, "RL_Dropshot": 0.25} # Per match
 RL_UNCERTAINTY_INCREASE = 0.025 # Per day of inactivity
-RL_MMR_DECAY_PER_DAY = 0.005 # Percentage of score to subtract from the player for each day without playing after reaching maximum uncertainty
+RL_MMR_DECAY_FACTOR_PER_DAY = 0.006
+RL_MMR_RECLAIM = 30
+RL_MAX_DECAY = 800
 
 # --- Mario Kart ---
 # DB Sheets
@@ -39,7 +41,9 @@ MK_BASE_MMR_DELTA = 25  # Max delta per pairwise matchup
 MK_BASE_UNCERTAINTY = 3.0
 MK_UNCERTAINTY_DECAY = 0.15   # Per race
 MK_UNCERTAINTY_INCREASE = 0.025  # Per day of inactivity
-MK_MMR_DECAY_PER_DAY = 0.005
+MK_MMR_DECAY_FACTOR_PER_DAY = 0.006
+MK_MMR_RECLAIM = 30
+MK_MAX_DECAY = 800
 
 # --- FIFA ---
 # DB Sheets
@@ -60,8 +64,10 @@ FIFA_BASE_MMR = 1000
 FIFA_BASE_MMR_DELTA = 25
 FIFA_BASE_UNCERTAINTY = 3.0
 FIFA_GAMMA = 800
-FIFA_MMR_DECAY_PER_DAY = 0.005
 FIFA_UNCERTAINTY_INCREASE = 0.025
 FIFA_UNCERTAINTY_DECAY = 0.1
 FIFA_GOAL_DIFFERENCE_FACTOR = 6
 FIFA_STAR_RATING_FACTOR = 100 # Extra MMR difference per star difference
+FIFA_MMR_DECAY_FACTOR_PER_DAY = 0.006
+FIFA_MMR_RECLAIM = 30
+FIFA_MAX_DECAY = 800

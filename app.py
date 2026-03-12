@@ -179,9 +179,8 @@ def render_rl():
         plot_line_chart(df_mmr, "Match", [c for c in df_mmr.columns if c != "Match"], rl_colors, vline_x_values=date_changes)
 
         df_unc = prepare_uncertainty_history(table)
-        if df_unc is not None:
-            st.markdown("#### Uncertainty History")
-            plot_line_chart(df_unc, "Match", [c for c in df_unc.columns if c != "Match"], rl_colors, vline_x_values=date_changes)
+        st.markdown("#### Uncertainty History")
+        plot_line_chart(df_unc, "Match", [c for c in df_unc.columns if c != "Match"], rl_colors, vline_x_values=date_changes)
 
         col_leaderboard, col_daily = st.columns(2)
 
@@ -201,11 +200,8 @@ def render_rl():
         with col_daily:
             df_daily, last_date = prepare_daily_mmr_delta_history(table)
             st.markdown(f"#### MMR Delta - Last Session ({last_date})")
-            if df_daily is not None:
-                n_matches = int(df_daily["Match"].max())
-                plot_line_chart(df_daily, "Match", [c for c in df_daily.columns if c != "Match"], rl_colors, tick_values=list(range(n_matches + 1)))
-            else:
-                st.info("No matches played on the last recorded date.")
+            n_matches = int(df_daily["Match"].max())
+            plot_line_chart(df_daily, "Match", [c for c in df_daily.columns if c != "Match"], rl_colors, tick_values=list(range(n_matches + 1)))
 
         st.markdown("---")
         st.subheader("Win Rate Matrices")
@@ -217,16 +213,13 @@ def render_rl():
 
         df_tog, df_ag, cnt_tog, cnt_ag = prepare_winrate_matrices(table)
 
-        if df_tog is not None and df_ag is not None:
-            col_tog, col_ag = st.columns(2)
-            with col_tog:
-                st.markdown("#### Win Rate Playing Together")
-                st.dataframe(style_winrate(df_tog, cnt_tog))
-            with col_ag:
-                st.markdown("#### Win Rate Playing Against")
-                st.dataframe(style_winrate(df_ag, cnt_ag))
-        else:
-            st.info("Not enough matches to generate win rate matrices.")
+        col_tog, col_ag = st.columns(2)
+        with col_tog:
+            st.markdown("#### Win Rate Playing Together")
+            st.dataframe(style_winrate(df_tog, cnt_tog))
+        with col_ag:
+            st.markdown("#### Win Rate Playing Against")
+            st.dataframe(style_winrate(df_ag, cnt_ag))
 
 
 def render_mk():

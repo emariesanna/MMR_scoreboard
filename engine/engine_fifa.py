@@ -7,12 +7,12 @@ from config import (
     FIFA_AWAY_SCORE_COL, FIFA_HOME_PENALTIES_SCORE_COL, FIFA_AWAY_PENALTIES_SCORE_COL, FIFA_HOME_STARS_COL,
     FIFA_AWAY_STARS_COL,
 
-    FIFA_BASE_MMR, FIFA_BASE_MMR_DELTA, FIFA_BASE_UNCERTAINTY, FIFA_GAMMA, FIFA_MMR_DECAY_PER_DAY,
+    FIFA_BASE_MMR, FIFA_BASE_MMR_DELTA, FIFA_BASE_UNCERTAINTY, FIFA_GAMMA, FIFA_MMR_DECAY_FACTOR_PER_DAY,
     FIFA_UNCERTAINTY_INCREASE, FIFA_UNCERTAINTY_DECAY, FIFA_GOAL_DIFFERENCE_FACTOR, FIFA_STAR_RATING_FACTOR,
 )
 from gsheets import read_sheet_df
 from engine.handlers import (
-    InactivityHandler,
+    TsInactivityHandler,
     UncertaintyHandler,
     EqualInflationHandler,
     FifaTeamMatchHandler,
@@ -54,8 +54,8 @@ def get_fifa_table(sheet_name: str) -> list:
     last_date_mmr = defaultdict(lambda: FIFA_BASE_MMR)
 
     # Initialize handlers
-    inactivity = InactivityHandler(active_players, last_mmr, uncertainty_factors, last_date_mmr, 
-                                   FIFA_UNCERTAINTY_INCREASE, FIFA_MMR_DECAY_PER_DAY, FIFA_BASE_UNCERTAINTY)
+    inactivity = TsInactivityHandler(active_players, last_mmr, uncertainty_factors, last_date_mmr, 
+                                   FIFA_UNCERTAINTY_INCREASE, FIFA_MMR_DECAY_FACTOR_PER_DAY, FIFA_BASE_UNCERTAINTY)
     uncertainty = UncertaintyHandler(last_mmr, uncertainty_factors, FIFA_UNCERTAINTY_DECAY)
     inflation = EqualInflationHandler(active_players, last_mmr)
     team_match = FifaTeamMatchHandler(last_mmr, last_date_mmr, FIFA_BASE_MMR_DELTA, FIFA_GAMMA, FIFA_STAR_RATING_FACTOR)
@@ -84,24 +84,15 @@ def get_fifa_table(sheet_name: str) -> list:
         # Calculate decay inflation (separate from uncertainty inflation)
         decay_inflation_delta = inflation.apply_inflation_correction(sum(decay_delta.values()))
 
-        # Calculate MMR difference
-        mmr_diff = team_match.calculate_mmr_diff(home_player, away_player, home_stars, away_stars)
         # Calculate win probabilities
-        home_win_prob, away_win_prob = team_match.calculate_win_probability(mmr_diff)
+        home_win_prob, away_win_prob = team_match.calculate_win_probability(home_player, away_player, home_stars, away_stars)
 
         # Apply match outcome
-        if home_score != away_score:
-            home_won = home_score > away_score
-            penalties = False
-        elif home_penalties_score != away_penalties_score: 
-            home_won = home_penalties_score > away_penalties_score
-            penalties = True
-        else:
-            home_won = 0.5  # Draw
-            penalties = False
-        match_delta = team_match.apply_match_outcome(home_player, away_player, home_won, home_win_prob, penalties)
+        match_delta = team_match.apply_match_outcome(home_player, away_player, 
+                                                     [home_score, away_score, home_penalties_score, away_penalties_score], home_win_prob)
 
         # Apply goal difference bonus/penalty
+        penalties = home_penalties_score > 0 or away_penalties_score > 0
         goal_difference_delta = goal_diff.apply_goal_difference([home_player], [away_player], home_score, away_score, 
                                                                 match_delta, penalties)
 

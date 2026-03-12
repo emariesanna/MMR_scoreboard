@@ -4,11 +4,11 @@ from config import (
     MK_DATE_COL, MK_MATCH_COL, MK_POSITION_COLS,
 
     MK_BASE_MMR, MK_GAMMA, MK_BASE_MMR_DELTA, MK_BASE_UNCERTAINTY, MK_UNCERTAINTY_DECAY, 
-    MK_UNCERTAINTY_INCREASE, MK_MMR_DECAY_PER_DAY,
+    MK_UNCERTAINTY_INCREASE, MK_MMR_DECAY_FACTOR_PER_DAY,
 )
 from gsheets import read_sheet_df
 from engine.handlers import (
-    InactivityHandler,
+    TsInactivityHandler,
     UncertaintyHandler,
     EqualInflationHandler,
     FreeForAllMatchHandler,
@@ -37,8 +37,8 @@ def get_mk_table(sheet_name: str) -> list:
     last_date_mmr = defaultdict(lambda: MK_BASE_MMR)
 
     # Initialize handlers
-    inactivity = InactivityHandler(active_players, last_mmr, uncertainty_factors, last_date_mmr, 
-                                   MK_UNCERTAINTY_INCREASE, MK_MMR_DECAY_PER_DAY, MK_BASE_UNCERTAINTY)
+    inactivity = TsInactivityHandler(active_players, last_mmr, uncertainty_factors, last_date_mmr, 
+                                   MK_UNCERTAINTY_INCREASE, MK_MMR_DECAY_FACTOR_PER_DAY, MK_BASE_UNCERTAINTY)
     uncertainty = UncertaintyHandler(last_mmr, uncertainty_factors, MK_UNCERTAINTY_DECAY)
     inflation = EqualInflationHandler(active_players, last_mmr)
     ffa_match = FreeForAllMatchHandler(last_mmr, last_date_mmr, MK_BASE_MMR_DELTA, MK_GAMMA)
