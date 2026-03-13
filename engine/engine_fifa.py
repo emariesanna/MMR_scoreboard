@@ -88,7 +88,7 @@ def get_fifa_table(sheet_name: str) -> list:
         home_win_prob, away_win_prob = team_match.calculate_win_probability(home_player, away_player, home_stars, away_stars)
 
         # Apply match outcome
-        match_delta = team_match.apply_match_outcome(home_player, away_player, 
+        match_delta = team_match.get_match_outcome(home_player, away_player, 
                                                      [home_score, away_score, home_penalties_score, away_penalties_score], home_win_prob)
 
         # Apply goal difference bonus/penalty

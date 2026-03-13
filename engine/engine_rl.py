@@ -1,12 +1,13 @@
 import pandas as pd
 from collections import defaultdict 
+from engine.handlers.inactivity_handler import InactivityHandler
 from gsheets import read_sheet_df
 from .handlers.team_match_handler import RLTeamMatchHandler
 from .handlers.goal_difference_handler import RLGoalDifferenceHandler
 from .handlers.uncertainty_handler import UncertaintyHandler
-from .handlers.inactivity_handler import TsInactivityHandler
+from .handlers.decay_handler import CappedDecayHandler
 from .handlers.inflation_handler import InflationHandler
-from utils import format_date, round_dict_values, convert_bool
+from utils import format_date, round_dict_values, convert_bool, sum_dicts
 from config import (
     RL_DATE_COL, RL_MATCH_COL, RL_BLUE_TEAM_COLS, RL_MAX_DECAY, RL_ORANGE_TEAM_COLS, RL_BLUE_SCORE_COL, 
     RL_ORANGE_SCORE_COL, RL_OVERTIME_COL,
@@ -30,52 +31,28 @@ def get_RL_table(sheet_name):
     #   "Uncertainty Factors": {str: float},    # Uncertainty factors for each active player before the match
     #   "Total Delta": {str: int},              # Total MMR delta for each active player adjusted for inflation
     #   "Total MMR": {str: int},                # Total MMR before for each active player adjusted for inflation
-    #   "Inflation Factor": float               # Multiplicative factor representing the total inflation applied to every MMR or delta
     # }
     table = []
     
-    # Initialize shared state
+    # Initialize session state
     active_players = set()
-
-    blue_win_prob = [0.0]
-    orange_win_prob = [0.0]
-
-    last_mmr = defaultdict(lambda: RL_BASE_MMR)
-    last_date_mmr = defaultdict(lambda: RL_BASE_MMR)
-    last_adjusted_mmr = defaultdict(lambda: RL_BASE_MMR)
-    total_delta = defaultdict(float)
-
-    uncertainty_factors = defaultdict(lambda: RL_BASE_UNCERTAINTY)
-    pre_match_uncertainty_factors = defaultdict(lambda: RL_BASE_UNCERTAINTY)
-    inactivity_days = defaultdict(int)
-    decay_adjustments = defaultdict(float)
-
-    total_inflation = [0.0]
-    inflation_factor = [1.0]
+    adjusted_mmr = defaultdict(lambda: RL_BASE_MMR)
+    raw_mmrs = defaultdict(lambda: RL_BASE_MMR)
 
     # Initialize handlers
-    team_match = RLTeamMatchHandler(blue_win_prob, orange_win_prob, 
-                                    last_mmr, last_date_mmr, total_delta, 
-                                    RL_BASE_MMR_DELTA, RL_GAMMA, RL_K_FACTOR)
-    goal_diff = RLGoalDifferenceHandler(last_mmr, total_delta, 
-                                        RL_GOAL_DIFFERENCE_FACTOR[sheet_name])
-    uncertainty = UncertaintyHandler(active_players, 
-                                     last_mmr, last_date_mmr, total_delta, 
-                                     uncertainty_factors, pre_match_uncertainty_factors, inactivity_days,
-                                     total_inflation,
-                                     RL_UNCERTAINTY_DECAY[sheet_name], RL_UNCERTAINTY_INCREASE, RL_BASE_UNCERTAINTY)
-    inactivity = TsInactivityHandler(active_players,
-                                     last_mmr, last_adjusted_mmr, total_delta,
-                                     total_inflation,
-                                     inactivity_days, decay_adjustments,
-                                     RL_MMR_DECAY_FACTOR_PER_DAY, RL_MMR_RECLAIM, RL_MAX_DECAY)
-    inflation = InflationHandler(active_players, 
-                                 total_inflation, inflation_factor, total_delta, last_adjusted_mmr, 
-                                 RL_BASE_MMR)
+    team_match = RLTeamMatchHandler(
+        RL_BASE_MMR_DELTA, RL_GAMMA, RL_K_FACTOR)
+    goal_diff = RLGoalDifferenceHandler(
+        RL_GOAL_DIFFERENCE_FACTOR[sheet_name])
+    inactivity = InactivityHandler()
+    uncertainty = UncertaintyHandler(
+        RL_UNCERTAINTY_DECAY[sheet_name], RL_UNCERTAINTY_INCREASE, RL_BASE_UNCERTAINTY)
+    decay = CappedDecayHandler(
+        RL_MMR_DECAY_FACTOR_PER_DAY, RL_MMR_RECLAIM, RL_MAX_DECAY)
+    inflation = InflationHandler(
+        RL_BASE_MMR)
 
     for _, rows in read_sheet_df(sheet_name).iterrows():
-        total_delta.clear()
-        
         # Extract match data
         date_val = pd.to_datetime(rows[RL_DATE_COL])
         date_str = format_date(date_val)
@@ -86,23 +63,48 @@ def get_RL_table(sheet_name):
         orange_score = rows[RL_ORANGE_SCORE_COL]
         overtime = convert_bool(rows[RL_OVERTIME_COL])
         
+        # last_date_mmrs --> match_deltas
+        team_match.process_match_outcome(
+            date_val, blue_team, orange_team, blue_score, orange_score, overtime, 
+            raw_mmrs)
+        
+        # match_deltas --> goal_difference_deltas
+        goal_diff.process_goal_difference(
+            blue_team, orange_team, blue_score, orange_score, overtime, 
+            team_match.get_match_deltas())
+        
+        # active_players --> inactivity_days
+        inactivity.process_inactivity(date_val, active_players)
+        
+        # active_players --> active_players
         active_players.update(blue_team + orange_team)
 
-        # Apply match outcome
-        team_match.apply_match_outcome(blue_team, orange_team, [blue_score, orange_score], overtime)
+        # inactivity_days, match_deltas + goal_difference_deltas --> 
+        # --> inactivity_days, uncertainty_deltas, uncertainty_factors
+        uncertainty.process_uncertainty(
+            inactivity.get_inactivity_days(),
+            sum_dicts([team_match.get_match_deltas(), goal_diff.get_goal_deltas()]))
         
-        # Apply goal difference bonus/penalty
-        goal_diff.apply_goal_difference(blue_team, orange_team, [blue_score, orange_score], overtime)
+        # match_deltas + goal_difference_deltas + uncertainty_deltas --> total_delta
+        total_delta = sum_dicts([team_match.get_match_deltas(), goal_diff.get_goal_deltas(), uncertainty.get_uncertainty_deltas()])
 
-        # Process date change for uncertainty, apply uncertainty amplification and reduce uncertainty
-        uncertainty.apply_uncertainty_amplification(blue_team + orange_team, date_val)
+        # raw_mmrs + total_delta --> raw_mmrs
+        raw_mmrs = sum_dicts([raw_mmrs, total_delta])
 
-        # Apply inactivity effects
-        inactivity.apply_inactivity_effects(blue_team + orange_team)
+        # inactivity_days --> decay_adjustment_deltas
+        decay.process_decay(blue_team + orange_team, uncertainty.get_inactivity_days())
 
-        # Apply inflation correction
-        inflation.apply_inflation_correction()
+        # adjusted_mmrs + total_delta + decay_adjustment_deltas --> adjusted_mmrs
+        adjusted_mmrs = sum_dicts([adjusted_mmrs, total_delta, decay.get_decay_adjustment_deltas()])
 
+        # uncertainty_deltas, decay_adjustment_deltas, active_players, adjusted_mmrs --> inflation_adjustment_deltas
+        inflation.process_inflation(
+            sum_dicts([uncertainty.get_uncertainty_deltas(), decay.get_decay_adjustment_deltas()]), 
+            active_players, adjusted_mmrs)
+        
+        # adjusted_mmrs + inflation_adjustment_deltas --> adjusted_mmrs
+        adjusted_mmrs = sum_dicts([adjusted_mmrs, inflation.get_inflation_adjustment_deltas()])
+        
         # Append match row to table (round all deltas and MMR to integers)
         table.append({
             "Date": date_str,
@@ -112,12 +114,14 @@ def get_RL_table(sheet_name):
             "Blue Score": blue_score,
             "Orange Score": orange_score,
             "Overtime": overtime,
-            "Blue Win Prob.": round(blue_win_prob[0], 2),
-            "Orange Win Prob.": round(orange_win_prob[0], 2),
-            "Uncertainty Factors": pre_match_uncertainty_factors.copy(),
-            "Total Delta": round_dict_values(total_delta.copy()),
-            "Total MMR": round_dict_values(last_adjusted_mmr.copy()),
-            "Inflation Factor": round(inflation_factor[0], 2)
+            "Blue Win Prob.": round(team_match.get_win_prob()[0], 2),
+            "Orange Win Prob.": round(team_match.get_win_prob()[1], 2),
+            "Uncertainty Factors": round_dict_values(uncertainty.get_last_date_uncertainty_factors().copy(), 2),
+            "Total Delta": round_dict_values(sum_dicts([
+                total_delta, 
+                inflation.get_inflation_adjustment_deltas()]).copy(), 
+                decay.get_decay_adjustment_deltas()),
+            "Total MMR": round_dict_values(adjusted_mmrs.copy()),
         })
 
     return table
