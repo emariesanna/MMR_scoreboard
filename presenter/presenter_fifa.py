@@ -399,7 +399,7 @@ def prepare_fifa_alltime_standings_and_suggested_matches(selected_players,table)
         {
             "Player A": p1,
             "Player B": p2,
-            "Played All Time": played_pairs_count[(p1, p2)],
+            "Played All Time": played_pairs_count.get(tuple(sorted((p1, p2))), 0),
         }
         for p1, p2 in combinations(players, 2)
     ]

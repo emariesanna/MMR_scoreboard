@@ -620,14 +620,14 @@ def render_fifa():
             if df_standings.empty:
                 st.info("No standings available for the selected players.")
             else:
-                st.dataframe(df_standings, use_container_width=True, hide_index=True)
+                st.dataframe(df_standings, width="stretch", hide_index=True)
 
         with col_suggested:
             st.markdown("**Suggested matches (least played pairings)**")
             if df_suggested.empty:
                 st.info("At least two selected players are required.")
             else:
-                st.dataframe(df_suggested, use_container_width=True, hide_index=True)
+                st.dataframe(df_suggested, width="stretch", hide_index=True)
 
         st.markdown("---")
 
