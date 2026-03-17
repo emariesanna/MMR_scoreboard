@@ -1,4 +1,5 @@
 import pandas as pd
+from itertools import combinations
 from config import FIFA_BASE_MMR
 
 
@@ -213,6 +214,96 @@ def prepare_fifa_daily_mmr_delta_history(table):
     return pd.DataFrame(history), last_date
 
 
+def prepare_fifa_daily_standings_and_suggested_matches(table):
+    last_date = table[-1]["Date"]
+    last_day = [e for e in table if e["Date"] == last_date]
+
+    players = sorted(
+        {
+            player
+            for entry in last_day
+            for player in [entry["Home Player"], entry["Away Player"]]
+            if player is not None
+        }
+    )
+
+    standings = {
+        p: {
+            "Pts": 0,
+            "P": 0,
+            "W": 0,
+            "D": 0,
+            "L": 0,
+            "GF": 0,
+            "GA": 0,
+        }
+        for p in players
+    }
+    played_pairs_count = {tuple(sorted(pair)): 0 for pair in combinations(players, 2)}
+
+    for entry in last_day:
+        home_player = entry["Home Player"]
+        away_player = entry["Away Player"]
+        home_score = int(entry["Home Score"])
+        away_score = int(entry["Away Score"])
+        home_pen_score = int(entry.get("Home Penalties Score", 0) or 0)
+        away_pen_score = int(entry.get("Away Penalties Score", 0) or 0)
+
+        standings[home_player]["P"] += 1
+        standings[away_player]["P"] += 1
+        standings[home_player]["GF"] += home_score
+        standings[home_player]["GA"] += away_score
+        standings[away_player]["GF"] += away_score
+        standings[away_player]["GA"] += home_score
+
+        if home_score > away_score or (home_score == away_score and home_pen_score > away_pen_score):
+            standings[home_player]["W"] += 1
+            standings[home_player]["Pts"] += 3
+            standings[away_player]["L"] += 1
+        elif away_score > home_score or (home_score == away_score and away_pen_score > home_pen_score):
+            standings[away_player]["W"] += 1
+            standings[away_player]["Pts"] += 3
+            standings[home_player]["L"] += 1
+        else:
+            standings[home_player]["D"] += 1
+            standings[away_player]["D"] += 1
+            standings[home_player]["Pts"] += 1
+            standings[away_player]["Pts"] += 1
+
+        pair_key = tuple(sorted((home_player, away_player)))
+        if pair_key in played_pairs_count:
+            played_pairs_count[pair_key] += 1
+
+    standings_rows = []
+    for player in players:
+        row = {"Player": player, **standings[player]}
+        row["GD"] = row["GF"] - row["GA"]
+        standings_rows.append(row)
+
+    df_standings = pd.DataFrame(standings_rows)
+    df_standings = df_standings.sort_values(
+        by=["Pts", "GD", "GF", "GA", "Player"],
+        ascending=[False, False, False, True, True],
+    ).reset_index(drop=True)
+
+    suggested_rows = [
+        {
+            "Player A": p1,
+            "Player B": p2,
+            "Played Today": played_pairs_count[(p1, p2)],
+        }
+        for p1, p2 in combinations(players, 2)
+    ]
+    df_suggested = pd.DataFrame(suggested_rows)
+    if not df_suggested.empty:
+        df_suggested = df_suggested.sort_values(
+            by=["Played Today", "Player A", "Player B"],
+            ascending=[True, True, True],
+        ).reset_index(drop=True)
+
+    return df_standings, df_suggested, last_date
+
+
 def prepare_fifa_winrate_matrices(table):
     active_players = list(table[-1]["Total MMR"].keys())
 
@@ -311,6 +402,49 @@ def prepare_fifa_winrate_matrices(table):
     df_against_m = df_against_m.loc[sorted_players, sorted_players]
 
     return df_against_w, df_against_m
+
+
+def prepare_fifa_goals_matrix(table):
+    active_players = list(table[-1]["Total MMR"].keys())
+
+    total_gf = {p: 0 for p in active_players}
+    total_ga = {p: 0 for p in active_players}
+    h2h_gf = {p1: {p2: 0 for p2 in active_players} for p1 in active_players}
+    h2h_ga = {p1: {p2: 0 for p2 in active_players} for p1 in active_players}
+
+    for entry in table:
+        home_player = entry["Home Player"]
+        away_player = entry["Away Player"]
+        home_score = int(entry["Home Score"])
+        away_score = int(entry["Away Score"])
+
+        total_gf[home_player] += home_score
+        total_ga[home_player] += away_score
+        total_gf[away_player] += away_score
+        total_ga[away_player] += home_score
+
+        h2h_gf[home_player][away_player] += home_score
+        h2h_ga[home_player][away_player] += away_score
+        h2h_gf[away_player][home_player] += away_score
+        h2h_ga[away_player][home_player] += home_score
+
+    df_goals = pd.DataFrame(index=active_players, columns=active_players, dtype=object)
+
+    for p1 in active_players:
+        for p2 in active_players:
+            if p1 == p2:
+                gf = total_gf[p1]
+                ga = total_ga[p1]
+            else:
+                gf = h2h_gf[p1][p2]
+                ga = h2h_ga[p1][p2]
+            df_goals.loc[p1, p2] = f"{gf}-{ga}"
+
+    goal_diff_rank = pd.Series({p: total_gf[p] - total_ga[p] for p in active_players}, dtype=float)
+    sorted_players = goal_diff_rank.sort_values(ascending=False).index.tolist()
+    df_goals = df_goals.loc[sorted_players, sorted_players]
+
+    return df_goals
 
 
 def prepare_fifa_date_changes(table):

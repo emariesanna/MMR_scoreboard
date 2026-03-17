@@ -10,7 +10,7 @@ from engine.engine_fifa import get_fifa_table
 from engine.engine_mk import get_mk_table
 from presenter.presenter_rl import prepare_match_table, prepare_leaderboard, prepare_mmr_history, prepare_daily_mmr_delta_history, prepare_uncertainty_history, prepare_winrate_matrices, prepare_date_changes
 from presenter.presenter_mk import prepare_mk_match_table, prepare_mk_leaderboard, prepare_mk_mmr_history, prepare_mk_daily_mmr_delta_history, prepare_mk_date_changes, prepare_mk_avg_position, prepare_mk_uncertainty_history, prepare_mk_winrate_matrices
-from presenter.presenter_fifa import prepare_fifa_match_table, prepare_fifa_leaderboard, prepare_fifa_mmr_history, prepare_fifa_daily_mmr_delta_history, prepare_fifa_uncertainty_history, prepare_fifa_winrate_matrices, prepare_fifa_date_changes
+from presenter.presenter_fifa import prepare_fifa_match_table, prepare_fifa_leaderboard, prepare_fifa_mmr_history, prepare_fifa_daily_mmr_delta_history, prepare_fifa_daily_standings_and_suggested_matches, prepare_fifa_uncertainty_history, prepare_fifa_winrate_matrices, prepare_fifa_goals_matrix, prepare_fifa_date_changes
 
 def style_winrate(df_val, df_cnt):
     df_text = df_val.copy().astype(object)
@@ -19,6 +19,49 @@ def style_winrate(df_val, df_cnt):
             v = df_val.loc[r, c]
             df_text.loc[r, c] = "" if pd.isna(v) else f"{v:.0%} ({int(df_cnt.loc[r, c])})"
     return df_text.style.background_gradient(cmap='RdYlGn', vmin=0, vmax=1, gmap=df_val, axis=None)
+
+
+def style_goals_matrix(df_val):
+    df_text = df_val.copy().astype(object)
+    df_diff = pd.DataFrame(index=df_val.index, columns=df_val.columns, dtype=float)
+
+    for r in df_val.index:
+        for c in df_val.columns:
+            v = df_val.loc[r, c]
+            if pd.isna(v):
+                df_text.loc[r, c] = ""
+                df_diff.loc[r, c] = float("nan")
+                continue
+
+            try:
+                gf_str, ga_str = str(v).split("-", 1)
+                gf = int(gf_str)
+                ga = int(ga_str)
+            except ValueError:
+                df_text.loc[r, c] = str(v)
+                df_diff.loc[r, c] = float("nan")
+                continue
+
+            if gf == 0 and ga == 0:
+                df_text.loc[r, c] = ""
+                df_diff.loc[r, c] = float("nan")
+                continue
+
+            diff = gf - ga
+            sign = "+" if diff > 0 else ""
+            df_text.loc[r, c] = f"{gf}-{ga} ({sign}{diff})"
+            df_diff.loc[r, c] = diff
+
+    finite_diffs = [abs(float(x)) for x in df_diff.stack() if pd.notna(x)]
+    max_abs_diff = max(finite_diffs) if finite_diffs else 1.0
+
+    return df_text.style.background_gradient(
+        cmap='RdYlGn',
+        vmin=-max_abs_diff,
+        vmax=max_abs_diff,
+        gmap=df_diff,
+        axis=None,
+    )
 
 
 def plot_line_chart(df_wide, x_col, y_cols, player_colors, vline_x_values=None, tick_values=None):
@@ -550,6 +593,50 @@ def render_fifa():
     with tab2:
         st.subheader("Leaderboard & Stats")
 
+        df_day_table, df_day_suggested, last_date = prepare_fifa_daily_standings_and_suggested_matches(table)
+        st.markdown(f"#### Daily Standings ({last_date})")
+        col_day_table, col_day_suggested = st.columns(2)
+
+        with col_day_table:
+            st.markdown("**Football-style table (3-1-0)**")
+            st.dataframe(df_day_table, width="stretch", hide_index=True)
+
+        with col_day_suggested:
+            st.markdown("**All pairings (sorted by times played today)**")
+            if df_day_suggested.empty:
+                st.info("At least two players are required to generate pairings.")
+            else:
+                st.dataframe(df_day_suggested, width="stretch", hide_index=True)
+
+        st.markdown("---")
+
+        col_winrate, col_goals = st.columns(2)
+
+        with col_winrate:
+            st.markdown("#### Head-to-Head Win Rate")
+            st.markdown(
+                "- **Diagonal**: player's overall win rate\n"
+                "- **Values in parentheses**: number of matches considered\n"
+                "- **Head-to-Head matrix**: row player's win rate against column player"
+            )
+
+            df_ag, cnt_ag = prepare_fifa_winrate_matrices(table)
+            if df_ag is not None:
+                st.dataframe(style_winrate(df_ag, cnt_ag))
+            else:
+                st.info("Not enough matches to generate head-to-head matrix.")
+
+        with col_goals:
+            st.markdown("#### Head-to-Head Goal Difference")
+            st.markdown(
+                "- **Diagonal**: player's overall goals scored and conceded\n"
+                "- **Value in parentheses**: goal difference (goals scored minus goals conceded)\n"
+                "- **Head-to-Head matrix**: row player's goal difference against column player"
+            )
+            st.dataframe(style_goals_matrix(prepare_fifa_goals_matrix(table)))
+
+        st.markdown("---")
+
         date_changes = prepare_fifa_date_changes(table)
 
         df_mmr = prepare_fifa_mmr_history(table)
@@ -610,18 +697,3 @@ def render_fifa():
                 )
             else:
                 st.info("No matches played on the last recorded date.")
-
-        st.markdown("---")
-        st.subheader("Head-to-Head Win Rate")
-        st.markdown(
-            "- **Diagonal**: player's overall win rate\n"
-            "- **Values in parentheses**: number of matches considered\n"
-            "- **Head-to-Head matrix**: row player's win rate against column player"
-        )
-
-        df_ag, cnt_ag = prepare_fifa_winrate_matrices(table)
-
-        if df_ag is not None:
-            st.dataframe(style_winrate(df_ag, cnt_ag))
-        else:
-            st.info("Not enough matches to generate head-to-head matrix.")

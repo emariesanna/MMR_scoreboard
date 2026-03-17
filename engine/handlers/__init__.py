@@ -1,20 +1,19 @@
 """Component handlers for MMR calculation engines."""
-from engine.handlers.decay_handler import CoreDecayHandler, TsInactivityHandler, ProportionalInactivityHandler
-from engine.handlers.team_match_handler import TeamMatchHandler, FifaTeamMatchHandler
-from engine.handlers.uncertainty_handler import UncertaintyHandler
-from engine.handlers.inflation_handler import InflationHandler, EqualInflationHandler
-from engine.handlers.goal_difference_handler import GoalDifferenceHandler
-from engine.handlers.free_for_all_match_handler import FreeForAllMatchHandler
+from .team_match_handler import TeamMatchHandler, FifaTeamMatchHandler
+from .goal_difference_handler import GoalDifferenceHandler
+from .inactivity_handler import InactivityHandler
+from .uncertainty_handler import UncertaintyHandler
+from .decay_handler import CappedDecayHandler
+from .inflation_handler import InflationHandler
+from .free_for_all_match_handler import FreeForAllMatchHandler
 
 __all__ = [
-    'CoreDecayHandler',
-    'TsInactivityHandler',
-    'ProportionalInactivityHandler',
-    'UncertaintyHandler',
-    'InflationHandler',
-    'EqualInflationHandler',
-    'TeamMatchHandler',
-    'FifaTeamMatchHandler',
-    'GoalDifferenceHandler',
-    'FreeForAllMatchHandler',
+    "TeamMatchHandler",
+    "FifaTeamMatchHandler",
+    "GoalDifferenceHandler",
+    "InactivityHandler",
+    "UncertaintyHandler",
+    "CappedDecayHandler",
+    "InflationHandler",
+    "FreeForAllMatchHandler"
 ]

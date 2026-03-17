@@ -37,7 +37,7 @@ def expand_table_with_decay_rows(table):
                 "Date": entry["Date"],
                 "Race": entry["Race"],
                 "Players": [],
-                "Uncertainty factors": entry["Uncertainty factors"].copy(),
+                "Uncertainty Factors": entry["Uncertainty Factors"].copy(),
                 "Race Delta": {},
                 "Uncertainty Delta": {},
                 "Decay Delta": entry["Decay Delta"].copy(),
@@ -210,7 +210,7 @@ def prepare_mk_uncertainty_history(table: list) -> pd.DataFrame:
         # Initialize all players with base uncertainty
         unc = {p: MK_BASE_UNCERTAINTY for p in active_players}
         # Update with actual pre-race values for players who were already active
-        unc.update({p: v for p, v in entry["Uncertainty factors"].items() if p in active_players})
+        unc.update({p: v for p, v in entry["Uncertainty Factors"].items() if p in active_players})
         
         if entry.get("Is Decay Row", False):
             # Decay row gets fractional position

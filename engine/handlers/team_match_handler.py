@@ -1,18 +1,21 @@
 """Team match handler for MMR calculation engines."""
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, List
+import logging
+from typing import Any, DefaultDict, Dict, List
 
 
 class TeamMatchHandler(ABC):
     """Calculates MMR delta from match outcome and win probabilities."""
     
-    def __init__(self, base_mmr_delta: float, gamma: float):
+    def __init__(self, base_mmr_delta: float, gamma: float, logger_name: str = "rl_engine_handlers"):
         self.base_mmr_delta = base_mmr_delta
         self.gamma = gamma
+        self.logger = logging.getLogger(logger_name)
 
         self.last_date = None
-        self.last_date_mmrs = {}
+        self.last_date_mmrs = defaultdict(float)
         self.match_deltas = {}
         self.a_win_prob = 0.0
         self.b_win_prob = 0.0
@@ -39,8 +42,9 @@ class TeamMatchHandler(ABC):
 
 class FifaTeamMatchHandler(TeamMatchHandler):
     """Team match handler with a single player per team, star ratings and penalties."""
-    def __init__(self, base_mmr_delta: float, gamma: float, star_rating_factor: float):
-        super().__init__(base_mmr_delta, gamma)
+    def __init__(self, base_mmr_delta: float, gamma: float, star_rating_factor: float,
+                 logger_name: str = "rl_engine_handlers"):
+        super().__init__(base_mmr_delta, gamma, logger_name)
         self.star_rating_factor = star_rating_factor
     
     def _calculate_win_probability(self, stars_home: float, stars_away: float, home_mmr: float, away_mmr: float):
@@ -59,13 +63,15 @@ class FifaTeamMatchHandler(TeamMatchHandler):
                               stars_home: float, stars_away: float, 
                               home_score: int, away_score: int, 
                               home_penalties_score: int, away_penalties_score: int,
-                              player_mmrs: Dict[str, float]):
+                              player_mmrs: DefaultDict[str, float]):
 
         if self.last_date is None or date_val > self.last_date:
             self.last_date = date_val
             self.last_date_mmrs = player_mmrs.copy()
 
-        self._calculate_win_probability(stars_home, stars_away, self.last_date_mmrs[home_player], player_mmrs[away_player])
+        self._calculate_win_probability(stars_home, stars_away, 
+                                        self.last_date_mmrs[home_player], 
+                                        self.last_date_mmrs[away_player])
 
         if home_score != away_score:
             home_won = home_score > away_score
@@ -87,26 +93,35 @@ class FifaTeamMatchHandler(TeamMatchHandler):
             away_player: -home_match_delta
         }
 
+        self.logger.info(
+            "TEAM_MATCH_HANDLER | win_prob=(%.4f, %.4f) | match_deltas=%s",
+            self.a_win_prob,
+            self.b_win_prob,
+            {k: round(v, 3) for k, v in sorted(self.match_deltas.items())},
+        )
+
         return
 
 
 class RLTeamMatchHandler(TeamMatchHandler):
     """Team match handler with different team size handling and overtime support."""
-    def __init__(self, base_mmr_delta: float, gamma: float, k_factor: float):
-        super().__init__(base_mmr_delta, gamma)
+    def __init__(self, base_mmr_delta: float, gamma: float, k_factor: float,
+                 logger_name: str = "rl_engine_handlers"):
+        super().__init__(base_mmr_delta, gamma, logger_name)
         self.k_factor = k_factor
 
     def process_match_outcome(self, 
                               date_val: datetime,
                               blue_team: List[str], orange_team: List[str], 
                               blue_score: int, orange_score: int, overtime: bool,
-                              player_mmrs: Dict[str, float]):
+                              player_mmrs: DefaultDict[str, float]):
         
         if self.last_date is None or date_val > self.last_date:
             self.last_date = date_val
             self.last_date_mmrs = player_mmrs.copy()
 
-        self._calculate_win_probability([self.last_date_mmrs[p] for p in blue_team], [self.last_date_mmrs[p] for p in orange_team])
+        self._calculate_win_probability([self.last_date_mmrs[p] for p in blue_team], 
+                                        [self.last_date_mmrs[p] for p in orange_team])
 
         blue_won = blue_score > orange_score
         
@@ -121,8 +136,16 @@ class RLTeamMatchHandler(TeamMatchHandler):
         blue_match_delta = blue_base_delta * orange_size / blue_size
         orange_match_delta = -blue_base_delta * blue_size / orange_size
 
-        self.match_deltas.update({player: blue_match_delta for player in blue_team})
+        self.match_deltas = {player: blue_match_delta for player in blue_team}
         self.match_deltas.update({player: orange_match_delta for player in orange_team})
+
+
+        self.logger.info(
+            "TEAM_MATCH_HANDLER | win_prob=(%.4f, %.4f) | match_deltas=%s",
+            self.a_win_prob,
+            self.b_win_prob,
+            {k: round(v, 3) for k, v in sorted(self.match_deltas.items())},
+        )
 
         return
 
@@ -136,7 +159,3 @@ class RLTeamMatchHandler(TeamMatchHandler):
         self._win_prob_formula((mmr_b - mmr_a)/((size_a + size_b)/2))
 
         return
-
-
-    
-
