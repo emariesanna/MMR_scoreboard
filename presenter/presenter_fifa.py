@@ -215,6 +215,7 @@ def prepare_fifa_daily_mmr_delta_history(table):
 
 
 def prepare_fifa_daily_standings_and_suggested_matches(table):
+    # Per ora inutile
     last_date = table[-1]["Date"]
     last_day = [e for e in table if e["Date"] == last_date]
 
@@ -303,6 +304,113 @@ def prepare_fifa_daily_standings_and_suggested_matches(table):
 
     return df_standings, df_suggested, last_date
 
+def prepare_fifa_alltime_standings_and_suggested_matches(selected_players,table):
+    def safe_int(x):
+        return int(x) if x not in (None, "", "None") else 0
+    
+    all_players = sorted(
+        {
+            player
+            for entry in table
+            for player in [entry.get("Home Player"), entry.get("Away Player")]
+            if player not in (None, "")
+        }
+    )
+
+    if not selected_players:
+        players = all_players
+    else:
+        players = [p for p in selected_players if p in all_players]
+
+    standings = {
+        p: {
+            "Pts": 0,
+            "P": 0,
+            "W": 0,
+            "D": 0,
+            "L": 0,
+            "GF": 0,
+            "GA": 0,
+        }
+        for p in players
+    }
+    played_pairs_count = {tuple(sorted(pair)): 0 for pair in combinations(players, 2)}
+
+    filtered_matches = []
+
+    for entry in table:
+        home_player = entry["Home Player"]
+        away_player = entry["Away Player"]
+
+        if not home_player or not away_player:
+            continue
+
+        if home_player in players and away_player in players:
+            filtered_matches.append(entry)
+
+    for entry in filtered_matches:
+        home_player = entry.get("Home Player")
+        away_player = entry.get("Away Player")
+        home_score = safe_int(entry.get("Home Score"))
+        away_score = safe_int(entry.get("Away Score"))
+        home_pen_score = safe_int(entry.get("Home Penalties Score", 0))
+        away_pen_score = safe_int(entry.get("Away Penalties Score", 0))
+
+        standings[home_player]["P"] += 1
+        standings[away_player]["P"] += 1
+        standings[home_player]["GF"] += home_score
+        standings[home_player]["GA"] += away_score
+        standings[away_player]["GF"] += away_score
+        standings[away_player]["GA"] += home_score
+
+        if home_score > away_score or (home_score == away_score and home_pen_score > away_pen_score):
+            standings[home_player]["W"] += 1
+            standings[home_player]["Pts"] += 3
+            standings[away_player]["L"] += 1
+        elif away_score > home_score or (home_score == away_score and away_pen_score > home_pen_score):
+            standings[away_player]["W"] += 1
+            standings[away_player]["Pts"] += 3
+            standings[home_player]["L"] += 1
+        else:
+            standings[home_player]["D"] += 1
+            standings[away_player]["D"] += 1
+            standings[home_player]["Pts"] += 1
+            standings[away_player]["Pts"] += 1
+
+        pair_key = tuple(sorted((home_player, away_player)))
+        if pair_key in played_pairs_count:
+            played_pairs_count[pair_key] += 1
+
+    standings_rows = []
+    for player in players:
+        row = {"Player": player, **standings[player]}
+        row["GD"] = row["GF"] - row["GA"]
+        standings_rows.append(row)
+
+    df_standings = pd.DataFrame(standings_rows)
+
+    if not df_standings.empty:
+        df_standings = df_standings.sort_values(
+            by=["Pts", "GD", "GF", "GA", "Player"],
+            ascending=[False, False, False, True, True],
+        ).reset_index(drop=True)
+
+    suggested_rows = [
+        {
+            "Player A": p1,
+            "Player B": p2,
+            "Played All Time": played_pairs_count[(p1, p2)],
+        }
+        for p1, p2 in combinations(players, 2)
+    ]
+    df_suggested = pd.DataFrame(suggested_rows)
+    if not df_suggested.empty:
+        df_suggested = df_suggested.sort_values(
+            by=["Played All Time", "Player A", "Player B"],
+            ascending=[True, True, True],
+        ).reset_index(drop=True)
+
+    return df_standings, df_suggested
 
 def prepare_fifa_winrate_matrices(table):
     active_players = list(table[-1]["Total MMR"].keys())

@@ -10,7 +10,7 @@ from engine.engine_fifa import get_fifa_table
 from engine.engine_mk import get_mk_table
 from presenter.presenter_rl import prepare_match_table, prepare_leaderboard, prepare_mmr_history, prepare_daily_mmr_delta_history, prepare_uncertainty_history, prepare_winrate_matrices, prepare_date_changes
 from presenter.presenter_mk import prepare_mk_match_table, prepare_mk_leaderboard, prepare_mk_mmr_history, prepare_mk_daily_mmr_delta_history, prepare_mk_date_changes, prepare_mk_avg_position, prepare_mk_uncertainty_history, prepare_mk_winrate_matrices
-from presenter.presenter_fifa import prepare_fifa_match_table, prepare_fifa_leaderboard, prepare_fifa_mmr_history, prepare_fifa_daily_mmr_delta_history, prepare_fifa_daily_standings_and_suggested_matches, prepare_fifa_uncertainty_history, prepare_fifa_winrate_matrices, prepare_fifa_goals_matrix, prepare_fifa_date_changes
+from presenter.presenter_fifa import prepare_fifa_match_table, prepare_fifa_leaderboard, prepare_fifa_mmr_history, prepare_fifa_daily_mmr_delta_history, prepare_fifa_daily_standings_and_suggested_matches, prepare_fifa_alltime_standings_and_suggested_matches, prepare_fifa_uncertainty_history, prepare_fifa_winrate_matrices, prepare_fifa_goals_matrix, prepare_fifa_date_changes
 
 def style_winrate(df_val, df_cnt):
     df_text = df_val.copy().astype(object)
@@ -593,20 +593,41 @@ def render_fifa():
     with tab2:
         st.subheader("Leaderboard & Stats")
 
-        df_day_table, df_day_suggested, last_date = prepare_fifa_daily_standings_and_suggested_matches(table)
-        st.markdown(f"#### Daily Standings ({last_date})")
-        col_day_table, col_day_suggested = st.columns(2)
+        all_players = sorted(
+            {
+                player
+                for entry in table
+                for player in [entry.get("Home Player"), entry.get("Away Player")]
+                if player not in (None, "")
+            }
+        )
+        selected_players = st.multiselect(
+            "Filtra classifica all time per giocatori",
+            options=all_players,
+            default=all_players,
+            key="fifa_alltime_players_filter",
+        )
 
-        with col_day_table:
+        df_standings, df_suggested = prepare_fifa_alltime_standings_and_suggested_matches(
+            selected_players,
+            table
+        )
+        st.markdown("#### All-Time Standings & Suggested Matches for Selected Players")
+        col_table, col_suggested = st.columns(2)
+
+        with col_table:
             st.markdown("**Football-style table (3-1-0)**")
-            st.dataframe(df_day_table, width="stretch", hide_index=True)
-
-        with col_day_suggested:
-            st.markdown("**All pairings (sorted by times played today)**")
-            if df_day_suggested.empty:
-                st.info("At least two players are required to generate pairings.")
+            if df_standings.empty:
+                st.info("No standings available for the selected players.")
             else:
-                st.dataframe(df_day_suggested, width="stretch", hide_index=True)
+                st.dataframe(df_standings, use_container_width=True, hide_index=True)
+
+        with col_suggested:
+            st.markdown("**Suggested matches (least played pairings)**")
+            if df_suggested.empty:
+                st.info("At least two selected players are required.")
+            else:
+                st.dataframe(df_suggested, use_container_width=True, hide_index=True)
 
         st.markdown("---")
 
