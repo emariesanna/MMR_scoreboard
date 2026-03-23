@@ -16,6 +16,9 @@ from engine.handlers.inactivity_handler import InactivityHandler
 from utils import format_date, round_dict_values, sum_dicts, sum_default_dicts
 
 
+INFLATION = False
+
+
 def _setup_mk_handler_logger() -> logging.Logger:
     logger = logging.getLogger("mk_engine_handlers")
     if logger.handlers:
@@ -111,12 +114,13 @@ def get_mk_table(sheet_name: str) -> list:
         adjusted_mmrs = sum_default_dicts([adjusted_mmrs, total_delta, decay.get_decay_adjustment_deltas()])
 
         # Process inflation
-        inflation.process_inflation(
-            sum_dicts([uncertainty.get_uncertainty_deltas(), decay.get_decay_adjustment_deltas()]),
-            active_players, adjusted_mmrs)
-        
-        # Final adjusted MMR update with inflation
-        adjusted_mmrs = sum_default_dicts([adjusted_mmrs, inflation.get_inflation_adjustment_deltas()])
+        if INFLATION:
+            inflation.process_inflation(
+                sum_dicts([uncertainty.get_uncertainty_deltas(), decay.get_decay_adjustment_deltas()]),
+                active_players, adjusted_mmrs)
+
+            # Final adjusted MMR update with inflation
+            adjusted_mmrs = sum_default_dicts([adjusted_mmrs, inflation.get_inflation_adjustment_deltas()])
 
         logger.info(
             "RACE_END | total_mmr=%s",

@@ -19,6 +19,7 @@ from config import (
     RL_ENGINE_LOG_FILE
 )
 
+INFLATION = False
 
 def _setup_rl_handler_logger() -> logging.Logger:
     logger = logging.getLogger("rl_engine_handlers")
@@ -135,12 +136,14 @@ def get_RL_table(sheet_name):
         adjusted_mmrs = sum_default_dicts([adjusted_mmrs, total_delta, decay.get_decay_adjustment_deltas()])
 
         # uncertainty_deltas, decay_adjustment_deltas, active_players, adjusted_mmrs --> inflation_adjustment_deltas
-        inflation.process_inflation(
-            sum_dicts([uncertainty.get_uncertainty_deltas(), decay.get_decay_adjustment_deltas()]), 
-            active_players, adjusted_mmrs)
+        if INFLATION:
+            inflation.process_inflation(
+                sum_dicts([uncertainty.get_uncertainty_deltas(), decay.get_decay_adjustment_deltas()]), 
+                active_players, adjusted_mmrs)
         
-        # adjusted_mmrs + inflation_adjustment_deltas --> adjusted_mmrs
-        adjusted_mmrs = sum_default_dicts([adjusted_mmrs, inflation.get_inflation_adjustment_deltas()])
+            # adjusted_mmrs + inflation_adjustment_deltas --> adjusted_mmrs
+            adjusted_mmrs = sum_default_dicts([adjusted_mmrs, inflation.get_inflation_adjustment_deltas()])
+            
         logger.info(
             "MATCH_END | total_mmr=%s",
             {k: round(v, 3) for k, v in sorted(adjusted_mmrs.items())},
