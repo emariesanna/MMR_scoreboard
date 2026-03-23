@@ -29,12 +29,12 @@ class CoreDecayHandler:
                 decay_factor_increase = days * self.decay_factor_per_day
                 self._calculate_decay_adjustment_deltas(player, decay_factor_increase, player_mmrs[player])
 
-            for player in match_players:
-                self.decay_adjustment_deltas[player] += min(
-                    self.mmr_reclaim, -self.decay_adjustments[player])
+        for player in match_players:
+            self.decay_adjustment_deltas[player] += min(
+                self.mmr_reclaim, -self.decay_adjustments[player])
 
-            for player in self.decay_adjustment_deltas:
-                self.decay_adjustments[player] += self.decay_adjustment_deltas[player]
+        for player in self.decay_adjustment_deltas:
+            self.decay_adjustments[player] += self.decay_adjustment_deltas[player]
         
         self.logger.info(
             "DECAY_HANDLER | decay_adjustment_deltas=%s",
