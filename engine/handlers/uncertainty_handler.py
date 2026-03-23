@@ -43,6 +43,7 @@ class UncertaintyHandler:
                 new_uncertainty = self.uncertainty_factors[player] + uncertainty_diff
                 if new_uncertainty < self.base_uncertainty:
                     self.uncertainty_factors[player] = round(new_uncertainty, 6)
+                    inactivity_days[player] = 0
                 else:
                     inactivity_days[player] = int((new_uncertainty - self.base_uncertainty) / self.uncertainty_increase)
                     self.uncertainty_factors[player] = self.base_uncertainty
