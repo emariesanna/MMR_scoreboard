@@ -1,5 +1,5 @@
 import pandas as pd
-from config import RL_BASE_MMR
+from config import RL_BASE_MMR, RL_HIDDEN_PLAYERS
 
 
 def prepare_match_table(table):
@@ -41,7 +41,7 @@ def prepare_match_table(table):
 
 
 def prepare_leaderboard(table):
-    last_mmr = table[-1]["Total MMR"]
+    last_mmr = {p: v for p, v in table[-1]["Total MMR"].items() if p not in RL_HIDDEN_PLAYERS}
     s = pd.Series(last_mmr).sort_values(ascending=False).astype(int)
     df = s.reset_index()
     df.columns = ["Player", "MMR"]
@@ -49,19 +49,20 @@ def prepare_leaderboard(table):
 
 
 def prepare_mmr_history(table):
-    active_players = list(table[-1]["Total MMR"].keys())
+    active_players = [p for p in table[-1]["Total MMR"].keys() if p not in RL_HIDDEN_PLAYERS]
     current_mmr = {p: RL_BASE_MMR for p in active_players}
     history = [{"Match": 0, **current_mmr}]
 
     for i, entry in enumerate(table, start=1):
-        current_mmr.update(entry["Total MMR"])
+        filtered_mmr = {p: v for p, v in entry["Total MMR"].items() if p in active_players}
+        current_mmr.update(filtered_mmr)
         history.append({"Match": i, **current_mmr})
 
     return pd.DataFrame(history)
 
 
 def prepare_uncertainty_history(table):
-    active_players = set(table[-1]["Total MMR"].keys())
+    active_players = {p for p in table[-1]["Total MMR"].keys() if p not in RL_HIDDEN_PLAYERS}
     
     # Import base uncertainty
     from config import RL_BASE_UNCERTAINTY
@@ -87,6 +88,7 @@ def prepare_daily_mmr_delta_history(table):
     players_in_last_day = set()
     for entry in last_day:
         players_in_last_day.update(entry["Blue Team"] + entry["Orange Team"])
+    players_in_last_day = {p for p in players_in_last_day if p not in RL_HIDDEN_PLAYERS}
 
     current_delta = {p: 0.0 for p in players_in_last_day}
     history = [{"Match": 0, **current_delta}]
@@ -99,7 +101,7 @@ def prepare_daily_mmr_delta_history(table):
 
 
 def prepare_winrate_matrices(table):
-    active_players = list(table[-1]["Total MMR"].keys())
+    active_players = [p for p in table[-1]["Total MMR"].keys() if p not in RL_HIDDEN_PLAYERS]
 
     together_m = {p1: {p2: 0 for p2 in active_players} for p1 in active_players}
     together_w = {p1: {p2: 0 for p2 in active_players} for p1 in active_players}
@@ -114,25 +116,33 @@ def prepare_winrate_matrices(table):
         blue_won = entry["Blue Score"] > entry["Orange Score"]
 
         for p in blue:
+            if p not in active_players: continue
             global_m[p] += 1
             if blue_won: global_w[p] += 1
         for p in orange:
+            if p not in active_players: continue
             global_m[p] += 1
             if not blue_won: global_w[p] += 1
 
         for p1 in blue:
+            if p1 not in active_players: continue
             for p2 in blue:
+                if p2 not in active_players: continue
                 if p1 != p2:
                     together_m[p1][p2] += 1
                     if blue_won: together_w[p1][p2] += 1
         for p1 in orange:
+            if p1 not in active_players: continue
             for p2 in orange:
+                if p2 not in active_players: continue
                 if p1 != p2:
                     together_m[p1][p2] += 1
                     if not blue_won: together_w[p1][p2] += 1
 
         for p1 in blue:
+            if p1 not in active_players: continue
             for p2 in orange:
+                if p2 not in active_players: continue
                 against_m[p1][p2] += 1
                 if blue_won: against_w[p1][p2] += 1
                 against_m[p2][p1] += 1
