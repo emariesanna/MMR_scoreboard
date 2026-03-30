@@ -12,7 +12,7 @@ from .handlers.inflation_handler import InflationHandler
 from utils import format_date, round_dict_values, convert_bool, sum_dicts, sum_default_dicts
 from config import (
     RL_DATE_COL, RL_MATCH_COL, RL_BLUE_TEAM_COLS, RL_MAX_DECAY, RL_ORANGE_TEAM_COLS, RL_BLUE_SCORE_COL, 
-    RL_ORANGE_SCORE_COL, RL_OVERTIME_COL,
+    RL_ORANGE_SCORE_COL, RL_OVERTIME_COL, RL_DEACTIVATED_PLAYERS,
 
     RL_BASE_MMR, RL_GAMMA, RL_K_FACTOR, RL_BASE_MMR_DELTA, RL_GOAL_DIFFERENCE_FACTOR, 
     RL_BASE_UNCERTAINTY, RL_UNCERTAINTY_DECAY, RL_UNCERTAINTY_INCREASE, RL_MMR_DECAY_FACTOR_PER_DAY, RL_MMR_RECLAIM,
@@ -88,6 +88,9 @@ def get_RL_table(sheet_name):
         blue_score = rows[RL_BLUE_SCORE_COL]
         orange_score = rows[RL_ORANGE_SCORE_COL]
         overtime = convert_bool(rows[RL_OVERTIME_COL])
+
+        if any(player in RL_DEACTIVATED_PLAYERS for player in blue_team + orange_team):
+            continue # Skip matches involving deleted players
 
         logger.info(
             "MATCH_START | date=%s | match=%s | blue=%s | orange=%s | score=%s-%s | overtime=%s",

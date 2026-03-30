@@ -27,6 +27,8 @@ RL_MMR_DECAY_FACTOR_PER_DAY = 0.006
 RL_MMR_RECLAIM = 30
 RL_MAX_DECAY = 800
 RL_ENGINE_LOG_FILE = os.path.join(ROOT, "logs", "rl_engine_handlers.log")
+# Players
+RL_DEACTIVATED_PLAYERS = ["Michi", "Gio", "Andre"]
 
 # --- Mario Kart ---
 # DB Sheets
