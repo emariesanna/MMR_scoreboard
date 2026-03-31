@@ -196,3 +196,130 @@ def prepare_date_changes(table):
     
     return sorted(set(date_change_positions))  # Remove duplicates and sort
 
+
+def prepare_1v1_winrate_matrix(table):
+    active_players = [p for p in table[-1]["Total MMR"].keys() if p not in RL_HIDDEN_PLAYERS]
+
+    against_m  = {p1: {p2: 0 for p2 in active_players} for p1 in active_players}
+    against_w  = {p1: {p2: 0 for p2 in active_players} for p1 in active_players}
+    global_m   = {p: 0 for p in active_players}
+    global_w   = {p: 0 for p in active_players}
+
+    for entry in table:
+        blue = entry["Blue Team"]
+        orange = entry["Orange Team"]
+        
+        # Only 1v1
+        if len(blue) != 1 or len(orange) != 1:
+            continue
+            
+        p1 = blue[0]
+        p2 = orange[0]
+        if p1 not in active_players or p2 not in active_players:
+            continue
+            
+        blue_won = entry["Blue Score"] > entry["Orange Score"]
+
+        global_m[p1] += 1
+        global_m[p2] += 1
+        if blue_won:
+            global_w[p1] += 1
+            against_w[p1][p2] += 1
+        else:
+            global_w[p2] += 1
+            against_w[p2][p1] += 1
+            
+        against_m[p1][p2] += 1
+        against_m[p2][p1] += 1
+
+    df_against_w   = pd.DataFrame(index=active_players, columns=active_players, dtype=float)
+    df_against_m  = pd.DataFrame(index=active_players, columns=active_players, dtype=float)
+    MIN_MATCHES = 1
+
+    for p_a in active_players:
+        wr_global = (global_w[p_a] / global_m[p_a]) if global_m[p_a] >= MIN_MATCHES else float('nan')
+        df_against_w.loc[p_a, p_a]  = wr_global
+        df_against_m.loc[p_a, p_a]  = global_m[p_a] if global_m[p_a] >= MIN_MATCHES else float('nan')
+        for p_b in active_players:
+            if p_a != p_b:
+                df_against_w.loc[p_a, p_b]   = (against_w[p_a][p_b]  / against_m[p_a][p_b])  if against_m[p_a][p_b]  >= MIN_MATCHES else float('nan')
+                df_against_m.loc[p_a, p_b]  = against_m[p_a][p_b]  if against_m[p_a][p_b]  >= MIN_MATCHES else float('nan')
+
+    df_global_w = pd.Series({p: (global_w[p] / global_m[p]) if global_m[p] >= MIN_MATCHES else float('nan') for p in active_players}, dtype=float)
+    sorted_players = df_global_w.sort_values(ascending=False, na_position='last').index.tolist()
+    
+    df_against_w   = df_against_w.loc[sorted_players, sorted_players]
+    df_against_m  = df_against_m.loc[sorted_players, sorted_players]
+
+    return df_against_w, df_against_m
+
+
+def prepare_1v1_goals_matrix(table):
+    active_players = [p for p in table[-1]["Total MMR"].keys() if p not in RL_HIDDEN_PLAYERS]
+
+    gf_matrix = {p1: {p2: 0 for p2 in active_players} for p1 in active_players}
+    ga_matrix = {p1: {p2: 0 for p2 in active_players} for p1 in active_players}
+    against_m = {p1: {p2: 0 for p2 in active_players} for p1 in active_players}
+
+    global_gf = {p: 0 for p in active_players}
+    global_ga = {p: 0 for p in active_players}
+    global_m = {p: 0 for p in active_players}
+
+    for entry in table:
+        blue = entry["Blue Team"]
+        orange = entry["Orange Team"]
+        
+        # Only 1v1
+        if len(blue) != 1 or len(orange) != 1:
+            continue
+            
+        p1 = blue[0]
+        p2 = orange[0]
+        
+        if p1 not in active_players or p2 not in active_players:
+            continue
+            
+        blue_goals = entry["Blue Score"]
+        orange_goals = entry["Orange Score"]
+
+        global_gf[p1] += blue_goals
+        global_ga[p1] += orange_goals
+        global_gf[p2] += orange_goals
+        global_ga[p2] += blue_goals
+        global_m[p1] += 1
+        global_m[p2] += 1
+
+        gf_matrix[p1][p2] += blue_goals
+        ga_matrix[p1][p2] += orange_goals
+        gf_matrix[p2][p1] += orange_goals
+        ga_matrix[p2][p1] += blue_goals
+        against_m[p1][p2] += 1
+        against_m[p2][p1] += 1
+
+    df_goals = pd.DataFrame(index=active_players, columns=active_players, dtype=object)
+
+    for p_a in active_players:
+        if global_m[p_a] == 0:
+            df_goals.loc[p_a, p_a] = float('nan')
+        else:
+            df_goals.loc[p_a, p_a] = f"{global_gf[p_a]}-{global_ga[p_a]}"
+            
+        for p_b in active_players:
+            if p_a != p_b:
+                if against_m[p_a][p_b] == 0:
+                    df_goals.loc[p_a, p_b] = float('nan')
+                else:
+                    df_goals.loc[p_a, p_b] = f"{gf_matrix[p_a][p_b]}-{ga_matrix[p_a][p_b]}"
+
+    global_gd = pd.Series({p: global_gf[p] - global_ga[p] for p in active_players if global_m[p] > 0})
+    
+    # Put players with no matches at the end
+    sorted_players = global_gd.sort_values(ascending=False).index.tolist()
+    missing_players = [p for p in active_players if p not in sorted_players]
+    sorted_players.extend(missing_players)
+    
+    df_goals = df_goals.loc[sorted_players, sorted_players]
+
+    return df_goals
+
+

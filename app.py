@@ -8,7 +8,7 @@ from gsheets import read_sheet_df, append_match, append_mk_race, get_game_player
 from engine.engine_rl import get_RL_table
 from engine.engine_fifa import get_fifa_table
 from engine.engine_mk import get_mk_table
-from presenter.presenter_rl import prepare_match_table, prepare_leaderboard, prepare_mmr_history, prepare_daily_mmr_delta_history, prepare_uncertainty_history, prepare_winrate_matrices, prepare_date_changes
+from presenter.presenter_rl import prepare_match_table, prepare_leaderboard, prepare_mmr_history, prepare_daily_mmr_delta_history, prepare_uncertainty_history, prepare_winrate_matrices, prepare_date_changes, prepare_1v1_winrate_matrix, prepare_1v1_goals_matrix
 from presenter.presenter_mk import prepare_mk_match_table, prepare_mk_leaderboard, prepare_mk_mmr_history, prepare_mk_daily_mmr_delta_history, prepare_mk_date_changes, prepare_mk_avg_position, prepare_mk_uncertainty_history, prepare_mk_winrate_matrices
 from presenter.presenter_fifa import prepare_fifa_match_table, prepare_fifa_leaderboard, prepare_fifa_mmr_history, prepare_fifa_daily_mmr_delta_history, prepare_fifa_daily_standings_and_suggested_matches, prepare_fifa_alltime_standings_and_suggested_matches, prepare_fifa_uncertainty_history, prepare_fifa_winrate_matrices, prepare_fifa_goals_matrix, prepare_fifa_date_changes
 
@@ -263,6 +263,24 @@ def render_rl():
         with col_ag:
             st.markdown("#### Win Rate Playing Against")
             st.dataframe(style_winrate(df_ag, cnt_ag))
+            
+        st.markdown("---")
+        st.subheader("1v1 Matrices")
+        st.markdown(
+            "- **Win Rate 1v1**: win rate playing 1v1 against the column player (row vs col)\n"
+            "- **Goals 1v1**: goals scored and conceded in 1v1 matches (row vs col)"
+        )
+        
+        df_1v1_wr, cnt_1v1_wr = prepare_1v1_winrate_matrix(table)
+        df_1v1_goals = prepare_1v1_goals_matrix(table)
+
+        col_1v1_wr, col_1v1_goals = st.columns(2)
+        with col_1v1_wr:
+            st.markdown("#### Win Rate 1v1")
+            st.dataframe(style_winrate(df_1v1_wr, cnt_1v1_wr))
+        with col_1v1_goals:
+            st.markdown("#### Goals 1v1 (GF-GA)")
+            st.dataframe(style_goals_matrix(df_1v1_goals))
 
 
 def render_mk():
