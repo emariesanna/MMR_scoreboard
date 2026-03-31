@@ -20,6 +20,7 @@ from config import (
 )
 
 INFLATION = False
+DECAY = False
 
 def _setup_rl_handler_logger() -> logging.Logger:
     logger = logging.getLogger("rl_engine_handlers")
@@ -132,11 +133,12 @@ def get_RL_table(sheet_name):
         # raw_mmrs + total_delta --> raw_mmrs
         raw_mmrs = sum_default_dicts([raw_mmrs, total_delta])
 
-        # adjusted_mmrs, raw_mmrs --> decay_adjustment_deltas
-        decay.process_decay(blue_team + orange_team, uncertainty.get_inactivity_days(), adjusted_mmrs)
+        if DECAY:
+            # adjusted_mmrs, raw_mmrs --> decay_adjustment_deltas
+            decay.process_decay(blue_team + orange_team, uncertainty.get_inactivity_days(), adjusted_mmrs)
 
-        # adjusted_mmrs + total_delta + decay_adjustment_deltas --> adjusted_mmrs
-        adjusted_mmrs = sum_default_dicts([adjusted_mmrs, total_delta, decay.get_decay_adjustment_deltas()])
+            # adjusted_mmrs + total_delta + decay_adjustment_deltas --> adjusted_mmrs
+            adjusted_mmrs = sum_default_dicts([adjusted_mmrs, total_delta, decay.get_decay_adjustment_deltas()])
 
         # uncertainty_deltas, decay_adjustment_deltas, active_players, adjusted_mmrs --> inflation_adjustment_deltas
         if INFLATION:
@@ -168,7 +170,7 @@ def get_RL_table(sheet_name):
                 total_delta, 
                 inflation.get_inflation_adjustment_deltas().copy(), 
                 decay.get_decay_adjustment_deltas()])),
-            "Total MMR": round_dict_values(adjusted_mmrs.copy()),
+            "Total MMR": round_dict_values(adjusted_mmrs.copy()) if INFLATION or DECAY else round_dict_values(raw_mmrs.copy()),
         })
 
     logger.info("=== RL engine end | sheet=%s | matches=%s ===", sheet_name, len(table))
