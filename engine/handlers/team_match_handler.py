@@ -150,12 +150,24 @@ class RLTeamMatchHandler(TeamMatchHandler):
         return
 
     def _calculate_win_probability(self, blue_team_mmr: List[float], orange_team_mmr: List[float]):
+        print(f"blue team MMRs: {blue_team_mmr} - orange team MMRs: {orange_team_mmr}")
         size_a = len(blue_team_mmr)
         size_b = len(orange_team_mmr)
 
-        mmr_a = sum(blue_team_mmr) * size_a ** (self.k_factor - 1)
-        mmr_b = sum(orange_team_mmr) * size_b ** (self.k_factor - 1)
+        mmr_a = sum(blue_team_mmr) # * size_a ** (self.k_factor - 1)
+        mmr_b = sum(orange_team_mmr) # * size_b ** (self.k_factor - 1)
         
         self._win_prob_formula((mmr_b - mmr_a)/((size_a + size_b)/2))
 
         return
+
+if __name__ == "__main__":
+    k_factor = 1
+    blue_team_mmr = [1118.8297428227604, 1000]
+    orange_team_mmr = [1280.7905228723969, 691.1367909622451]
+    handler = RLTeamMatchHandler(base_mmr_delta=25, gamma=800, k_factor=k_factor)
+    handler._calculate_win_probability(blue_team_mmr=blue_team_mmr, orange_team_mmr=orange_team_mmr)
+    mmr_a = sum(blue_team_mmr) * len(blue_team_mmr) ** (k_factor - 1)
+    mmr_b = sum(orange_team_mmr) * len(orange_team_mmr) ** (k_factor - 1)
+    print(f"Blue win prob: {handler.get_win_prob()[0]:.4f}, Orange win prob: {handler.get_win_prob()[1]:.4f}")
+    print(f"mmr_a: {mmr_a:.2f}, mmr_b: {mmr_b:.2f}, mmr_diff: {(mmr_b - mmr_a)/((len(blue_team_mmr) + len(orange_team_mmr))/2):.2f}")

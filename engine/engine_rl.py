@@ -21,6 +21,7 @@ from config import (
 
 INFLATION = False
 DECAY = False
+UNCERTAINTY = False
 
 def _setup_rl_handler_logger() -> logging.Logger:
     logger = logging.getLogger("rl_engine_handlers")
@@ -114,21 +115,23 @@ def get_RL_table(sheet_name):
             blue_team, orange_team, blue_score, orange_score, overtime, 
             team_match.get_match_deltas())
         
-        # active_players --> inactivity_days
-        inactivity.process_inactivity(date_val, active_players)
+        if UNCERTAINTY or DECAY:
+            # active_players --> inactivity_days
+            inactivity.process_inactivity(date_val, active_players)
         
         # active_players --> active_players
         active_players.update(blue_team + orange_team)
 
-        # inactivity_days, match_deltas + goal_difference_deltas --> 
-        # --> inactivity_days, uncertainty_deltas, uncertainty_factors
-        uncertainty.process_uncertainty(
-            sum_dicts([team_match.get_match_deltas(), goal_diff.get_goal_deltas()]),
-            inactivity.get_inactivity_days()
-            )
+        if UNCERTAINTY:
+            # inactivity_days, match_deltas + goal_difference_deltas --> 
+            # --> inactivity_days, uncertainty_deltas, uncertainty_factors
+            uncertainty.process_uncertainty(
+                sum_dicts([team_match.get_match_deltas(), goal_diff.get_goal_deltas()]),
+                inactivity.get_inactivity_days()
+                )
         
         # match_deltas + goal_difference_deltas + uncertainty_deltas --> total_delta
-        total_delta = sum_dicts([team_match.get_match_deltas(), goal_diff.get_goal_deltas(), uncertainty.get_uncertainty_deltas()])
+        total_delta = sum_dicts([team_match.get_match_deltas(), goal_diff.get_goal_deltas(), uncertainty.get_uncertainty_deltas() if UNCERTAINTY else {}])
 
         # raw_mmrs + total_delta --> raw_mmrs
         raw_mmrs = sum_default_dicts([raw_mmrs, total_delta])
@@ -151,7 +154,7 @@ def get_RL_table(sheet_name):
             
         logger.info(
             "MATCH_END | total_mmr=%s",
-            {k: round(v, 3) for k, v in sorted(adjusted_mmrs.items())},
+            {k: round(v, 3) for k, v in sorted(raw_mmrs.items())},
         )
         
         # Append match row to table (round all deltas and MMR to integers)
