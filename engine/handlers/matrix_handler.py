@@ -94,9 +94,34 @@ class RLMatrixHandler(MatrixHandler):
         return
     
     def get_global_matrix_mmrs(self) -> dict:
-        """
-        Calculates a global holistic MMR summary for each player using exponential weights.
-        """
+        n = len(self.player_indices)
+        if n == 0:
+            return {}
+
+        global_mmrs = {}
+        for player, i in self.player_indices.items():
+            global_mmrs[player] = 0
+
+            for j in range(n):
+                if i == j:
+                    continue
+
+                direct_value = self.mmr_matrix[i][j]
+                avg_collateral_value = 0
+
+                for k in range(n):
+                    if k == i or k == j:
+                        continue
+                    
+                    avg_collateral_value += self.mmr_matrix[i][k] - self.mmr_matrix[j][k]
+                
+                avg_collateral_value /= (n - 2)
+
+            global_mmrs[player] += direct_value * 1 + avg_collateral_value * 1 # PARAMETRO
+            
+        return global_mmrs
+    
+    def get_global_matrix_mmrs_old(self) -> dict:
         n = len(self.player_indices)
         if n == 0:
             return {}
