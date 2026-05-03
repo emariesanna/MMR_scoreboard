@@ -3,6 +3,7 @@ import logging
 import os
 from collections import defaultdict 
 from engine.handlers.inactivity_handler import InactivityHandler
+from engine.handlers.matrix_handler import RLMatrixHandler
 from gsheets import read_sheet_df
 from .handlers.team_match_handler import RLTeamMatchHandler
 from .handlers.goal_difference_handler import RLGoalDifferenceHandler
@@ -14,7 +15,7 @@ from config import (
     RL_DATE_COL, RL_MATCH_COL, RL_BLUE_TEAM_COLS, RL_MAX_DECAY, RL_ORANGE_TEAM_COLS, RL_BLUE_SCORE_COL, 
     RL_ORANGE_SCORE_COL, RL_OVERTIME_COL, RL_DEACTIVATED_PLAYERS,
 
-    RL_BASE_MMR, RL_GAMMA, RL_K_FACTOR, RL_BASE_MMR_DELTA, RL_GOAL_DIFFERENCE_FACTOR, 
+    RL_BASE_MMR, RL_GAMMA, RL_MATRIX_GAMMA, RL_BETA, RL_K_FACTOR, RL_BASE_MMR_DELTA, RL_GOAL_DIFFERENCE_FACTOR, 
     RL_BASE_UNCERTAINTY, RL_UNCERTAINTY_DECAY, RL_UNCERTAINTY_INCREASE, RL_MMR_DECAY_FACTOR_PER_DAY, RL_MMR_RECLAIM,
     RL_ENGINE_LOG_FILE
 )
@@ -79,6 +80,8 @@ def get_RL_table(sheet_name):
         RL_MMR_DECAY_FACTOR_PER_DAY, RL_MMR_RECLAIM, RL_MAX_DECAY, logger_name="rl_engine_handlers")
     inflation = InflationHandler(
         RL_BASE_MMR, logger_name="rl_engine_handlers")
+    matrix = RLMatrixHandler(
+        RL_BASE_MMR, RL_BASE_MMR_DELTA, RL_BETA, RL_MATRIX_GAMMA, RL_GOAL_DIFFERENCE_FACTOR[sheet_name])
 
     for _, rows in read_sheet_df(sheet_name).iterrows():
         # Extract match data
@@ -94,6 +97,8 @@ def get_RL_table(sheet_name):
         if any(player in RL_DEACTIVATED_PLAYERS for player in blue_team + orange_team):
             continue # Skip matches involving deleted players
 
+        print (f"\nProcessing match {match_num} | {date_str} | Blue: {blue_team} ({blue_score}) vs Orange: {orange_team} ({orange_score}) OT: {overtime})")
+
         logger.info(
             "MATCH_START | date=%s | match=%s | blue=%s | orange=%s | score=%s-%s | overtime=%s",
             date_str,
@@ -104,6 +109,9 @@ def get_RL_table(sheet_name):
             orange_score,
             overtime,
         )
+
+        matrix_prob_blue, matrix_prob_orange = matrix.predict_win_prob(blue_team, orange_team)
+        matrix.process_match_outcome(blue_team, orange_team, blue_score, orange_score, overtime)
         
         # raw_mmrs --> match_deltas
         team_match.process_match_outcome(
@@ -168,12 +176,16 @@ def get_RL_table(sheet_name):
             "Overtime": overtime,
             "Blue Win Prob.": round(team_match.get_win_prob()[0], 2),
             "Orange Win Prob.": round(team_match.get_win_prob()[1], 2),
+            "Matrix Blue Prob.": matrix_prob_blue,
+            "Matrix Orange Prob.": matrix_prob_orange,
             "Uncertainty Factors": round_dict_values(uncertainty.get_uncertainty_factors().copy(), 2),
             "Total Delta": round_dict_values(sum_dicts([
                 total_delta, 
                 inflation.get_inflation_adjustment_deltas().copy(), 
                 decay.get_decay_adjustment_deltas()])),
             "Total MMR": round_dict_values(adjusted_mmrs.copy()) if INFLATION or DECAY else round_dict_values(raw_mmrs.copy()),
+            "Matrix MMR": [row[:] for row in matrix.mmr_matrix],
+            "Matrix Indices": matrix.player_indices.copy(),
         })
 
     logger.info("=== RL engine end | sheet=%s | matches=%s ===", sheet_name, len(table))

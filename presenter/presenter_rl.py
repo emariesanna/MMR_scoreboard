@@ -323,3 +323,34 @@ def prepare_1v1_goals_matrix(table):
     return df_goals
 
 
+def prepare_matrix_mmr_history(table):
+    active_players = [p for p in table[-1]["Total MMR"].keys() if p not in RL_HIDDEN_PLAYERS]
+    
+    history_dfs = []
+    
+    for i, entry in enumerate(table):
+        matrix = entry.get("Matrix MMR", [])
+        indices = entry.get("Matrix Indices", {})
+        
+        if not matrix or not indices:
+            continue
+            
+        index_to_player = {v: k for k, v in indices.items()}
+        
+        df = pd.DataFrame(index=active_players, columns=active_players, dtype=float)
+        
+        for r_idx, row in enumerate(matrix):
+            p1 = index_to_player.get(r_idx)
+            if p1 not in active_players:
+                continue
+            for c_idx, val in enumerate(row):
+                p2 = index_to_player.get(c_idx)
+                if p2 not in active_players:
+                    continue
+                df.loc[p1, p2] = val
+        
+        history_dfs.append(df)
+        
+    return history_dfs
+
+

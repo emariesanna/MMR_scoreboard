@@ -5,10 +5,10 @@ from datetime import date
 
 from config import RL_SHEETS, MK_SHEET, FIFA_SHEET, RL_MATCH_COL, MK_MATCH_COL, FIFA_MATCH_COL
 from gsheets import read_sheet_df, append_match, append_mk_race, get_game_players, append_player, read_players_df
-from engine.engine_rl import get_RL_table
+from engine.engine_rl import get_RL_table, UNCERTAINTY
 from engine.engine_fifa import get_fifa_table
 from engine.engine_mk import get_mk_table
-from presenter.presenter_rl import prepare_match_table, prepare_leaderboard, prepare_mmr_history, prepare_daily_mmr_delta_history, prepare_uncertainty_history, prepare_winrate_matrices, prepare_date_changes, prepare_1v1_winrate_matrix, prepare_1v1_goals_matrix
+from presenter.presenter_rl import prepare_match_table, prepare_leaderboard, prepare_mmr_history, prepare_daily_mmr_delta_history, prepare_uncertainty_history, prepare_winrate_matrices, prepare_date_changes, prepare_1v1_winrate_matrix, prepare_1v1_goals_matrix, prepare_matrix_mmr_history
 from presenter.presenter_mk import prepare_mk_match_table, prepare_mk_leaderboard, prepare_mk_mmr_history, prepare_mk_daily_mmr_delta_history, prepare_mk_date_changes, prepare_mk_avg_position, prepare_mk_uncertainty_history, prepare_mk_winrate_matrices
 from presenter.presenter_fifa import prepare_fifa_match_table, prepare_fifa_leaderboard, prepare_fifa_mmr_history, prepare_fifa_daily_mmr_delta_history, prepare_fifa_daily_standings_and_suggested_matches, prepare_fifa_alltime_standings_and_suggested_matches, prepare_fifa_uncertainty_history, prepare_fifa_winrate_matrices, prepare_fifa_goals_matrix, prepare_fifa_date_changes
 
@@ -19,6 +19,41 @@ def style_winrate(df_val, df_cnt):
             v = df_val.loc[r, c]
             df_text.loc[r, c] = "" if pd.isna(v) else f"{v:.0%} ({int(df_cnt.loc[r, c])})"
     return df_text.style.background_gradient(cmap='RdYlGn', vmin=0, vmax=1, gmap=df_val, axis=None)
+
+
+def style_matrix_mmr(df_val, df_delta=None):
+    df_text = df_val.copy().astype(object)
+    
+    for r in df_val.index:
+        for c in df_val.columns:
+            v = df_val.loc[r, c]
+            if pd.isna(v):
+                df_text.loc[r, c] = ""
+                continue
+            
+            if r == c:
+                df_text.loc[r, c] = f"{int(round(v))}"
+            else:
+                diff = v
+                sign = "+" if diff > 0 else ""
+                df_text.loc[r, c] = f"{sign}{int(round(diff))}" if round(diff) != 0 else "0"
+
+            if df_delta is not None and pd.notna(df_delta.loc[r, c]):
+                d_val = round(df_delta.loc[r, c])
+                if d_val != 0:
+                    sign_d = "+" if d_val > 0 else ""
+                    df_text.loc[r, c] += f" ({sign_d}{int(d_val)})"
+
+    finite_diffs = [abs(float(df_val.loc[r, c])) for r in df_val.index for c in df_val.columns if r != c and pd.notna(df_val.loc[r, c])]
+    max_abs_diff = max(finite_diffs) if finite_diffs else 1.0
+
+    return df_text.style.background_gradient(
+        cmap='RdYlGn',
+        vmin=-max_abs_diff,
+        vmax=max_abs_diff,
+        gmap=df_val,
+        axis=None,
+    )
 
 
 def style_goals_matrix(df_val):
@@ -107,6 +142,10 @@ def render_interface():
         render_mk()
 
 
+@st.cache_data
+def get_cached_RL_table(selected_sheet):
+    return get_RL_table(selected_sheet)
+
 def render_rl():
     st.sidebar.title("Game Mode")
     sheet_labels = [s.removeprefix("RL_") for s in RL_SHEETS]
@@ -194,6 +233,7 @@ def render_rl():
                     ]
                     append_match(selected_sheet, row_values)
                     read_sheet_df.clear()
+                    get_cached_RL_table.clear()
                     st.success(f"Match {new_id} registered in {selected_sheet}!")
                     st.rerun()
 
@@ -204,7 +244,7 @@ def render_rl():
             st.info(f"No matches recorded in {selected_sheet}. Go to 'Add Match' to get started!")
         return
 
-    table = get_RL_table(selected_sheet)
+    table = get_cached_RL_table(selected_sheet)
 
     # --- TAB 1: MATCH HISTORY ---
     with tab1:
@@ -221,10 +261,55 @@ def render_rl():
         st.markdown("#### MMR History (match by match)")
         plot_line_chart(df_mmr, "Match", [c for c in df_mmr.columns if c != "Match"], rl_colors, vline_x_values=date_changes)
 
-        df_unc = prepare_uncertainty_history(table)
-        st.markdown("#### Uncertainty History")
-        plot_line_chart(df_unc, "Match", [c for c in df_unc.columns if c != "Match"], rl_colors, vline_x_values=date_changes)
+        st.markdown("---")
+        st.subheader("Matrix MMR Match by Match")
+        st.markdown(
+            "- **Matrix**: How the row player performs relative to the column player (value > 0 means row player is dominating).\n"
+            "- Select a match below to see the state of the MMR Matrix after that match."
+        )
+        
+        matrix_history = prepare_matrix_mmr_history(table)
+        if matrix_history:
+            if 'matrix_sel' not in st.session_state:
+                st.session_state.matrix_sel = len(matrix_history)
+                
+            def dec_matrix():
+                st.session_state.matrix_sel = max(1, st.session_state.matrix_sel - 1)
+            def inc_matrix():
+                st.session_state.matrix_sel = min(len(matrix_history), st.session_state.matrix_sel + 1)
 
+            col_btn_L, col_sld, col_btn_R = st.columns([1, 10, 1])
+            col_btn_L.button("◀", on_click=dec_matrix, use_container_width=True)
+            selected_match_idx = col_sld.slider("Select Match Index", min_value=1, max_value=len(matrix_history), key="matrix_sel", label_visibility="collapsed")
+            col_btn_R.button("▶", on_click=inc_matrix, use_container_width=True)
+            
+            entry = table[selected_match_idx - 1]
+            ot_str = " **(OT)**" if entry["Overtime"] else ""
+            blue_str = ", ".join(entry["Blue Team"])
+            orange_str = ", ".join(entry["Orange Team"])
+
+            df_matrix_mmr = matrix_history[selected_match_idx - 1]
+            if selected_match_idx > 1:
+                df_prev = matrix_history[selected_match_idx - 2]
+            else:
+                df_prev = pd.DataFrame(0.0, index=df_matrix_mmr.index, columns=df_matrix_mmr.columns)
+            
+            prob_blue = entry.get("Matrix Blue Prob.", 0.5)
+            prob_orange = entry.get("Matrix Orange Prob.", 0.5)
+            
+            st.markdown(f"🗓️ **Match {entry['Match']}** ({entry['Date']}) — 🔵 {blue_str} **({int(round(prob_blue*100))}%)** **{entry['Blue Score']} - {entry['Orange Score']}** **({int(round(prob_orange*100))}%)** 🟠 {orange_str}{ot_str}")
+            
+            df_delta = df_matrix_mmr - df_prev
+            
+            st.dataframe(style_matrix_mmr(df_matrix_mmr, df_delta), use_container_width=True)
+
+        if UNCERTAINTY:
+            st.markdown("---")
+            df_unc = prepare_uncertainty_history(table)
+            st.markdown("#### Uncertainty History")
+            plot_line_chart(df_unc, "Match", [c for c in df_unc.columns if c != "Match"], rl_colors, vline_x_values=date_changes)
+
+        st.markdown("---")
         col_leaderboard, col_daily = st.columns(2)
 
         with col_leaderboard:
@@ -281,7 +366,6 @@ def render_rl():
         with col_1v1_goals:
             st.markdown("#### Goals 1v1 (GF-GA)")
             st.dataframe(style_goals_matrix(df_1v1_goals))
-
 
 def render_mk():
     selected_sheet = MK_SHEET

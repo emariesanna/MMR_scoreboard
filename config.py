@@ -16,7 +16,9 @@ RL_ORANGE_SCORE_COL = "Goal_Orange"
 RL_OVERTIME_COL = "Overtime"
 # Hyperparameters
 RL_BASE_MMR = 1000
+RL_BETA = 0.5
 RL_GAMMA = 800
+RL_MATRIX_GAMMA = 800
 RL_K_FACTOR = 0.85
 RL_BASE_MMR_DELTA = 25
 RL_GOAL_DIFFERENCE_FACTOR = {"RL_Soccar": 6, "RL_Gridiron": 70, "RL_Hoops": 6, "RL_Dropshot": 3}

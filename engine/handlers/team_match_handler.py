@@ -150,7 +150,6 @@ class RLTeamMatchHandler(TeamMatchHandler):
         return
 
     def _calculate_win_probability(self, blue_team_mmr: List[float], orange_team_mmr: List[float]):
-        print(f"blue team MMRs: {blue_team_mmr} - orange team MMRs: {orange_team_mmr}")
         size_a = len(blue_team_mmr)
         size_b = len(orange_team_mmr)
 
