@@ -97,27 +97,38 @@ class RLMatrixHandler(MatrixHandler):
         n = len(self.player_indices)
         if n == 0:
             return {}
+        
+        print("\n\nCalculating global MMRs:")
 
         global_mmrs = {}
         for player, i in self.player_indices.items():
             global_mmrs[player] = 0
 
+            print(f"\nPlayer: {player}")
+
             for j in range(n):
                 if i == j:
                     continue
 
-                direct_value = self.mmr_matrix[i][j]
+                direct_value = 1 / (1 + 10**(-self.mmr_matrix[i][j] / self.gamma))
                 avg_collateral_value = 0
+
+                print(f"Direct MMR vs {list(self.player_indices.keys())[j]}: {direct_value:.4f}")
 
                 for k in range(n):
                     if k == i or k == j:
                         continue
-                    
-                    avg_collateral_value += self.mmr_matrix[i][k] - self.mmr_matrix[j][k]
-                
+
+                    collateral_contribution = 1 / (1 + 10**(-(self.mmr_matrix[i][k] - self.mmr_matrix[j][k]) / self.gamma))
+                    avg_collateral_value += collateral_contribution
+
+                    print(f"Collateral contribution from {list(self.player_indices.keys())[k]}: {collateral_contribution:.4f}")
+
                 avg_collateral_value /= (n - 2)
 
-            global_mmrs[player] += direct_value * 1 + avg_collateral_value * 1 # PARAMETRO
+                global_mmrs[player] += direct_value + avg_collateral_value
+
+            global_mmrs[player] *= self.base_mmr / (n - 1)
             
         return global_mmrs
     
