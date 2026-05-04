@@ -7,6 +7,7 @@ class MatrixHandler():
         self.mmr_matrix = []
         self.base_mmr = base_mmr
         self.base_mmr_delta = base_mmr_delta
+        self.last_date = None
         
     @abstractmethod
     def process_match_outcome(self, *args: Any):
@@ -16,12 +17,32 @@ class MatrixHandler():
         pass
 
 class RLMatrixHandler(MatrixHandler):
-    def __init__(self, base_mmr: float, base_mmr_delta: float, beta: float, gamma: float, goal_difference_factor: float):
+    def __init__(self, base_mmr: float, base_mmr_delta: float, beta: float, gamma: float, goal_difference_factor: float, matrix_decay_per_day: float):
         super().__init__(base_mmr, base_mmr_delta)
 
         self.beta = beta
         self.gamma = gamma
         self.goal_difference_factor = goal_difference_factor
+        self.matrix_decay_per_day = matrix_decay_per_day
+
+    def process_decay(self, current_date):
+        if self.last_date is None:
+            self.last_date = current_date
+            return
+        
+        days_passed = (current_date - self.last_date).days
+        if days_passed > 0:
+            decay_amount = days_passed * self.matrix_decay_per_day
+            n = len(self.player_indices)
+            for i in range(n):
+                for j in range(n):
+                    if i != j:
+                        if self.mmr_matrix[i][j] > 0:
+                            self.mmr_matrix[i][j] = max(0.0, self.mmr_matrix[i][j] - decay_amount)
+                        elif self.mmr_matrix[i][j] < 0:
+                            self.mmr_matrix[i][j] = min(0.0, self.mmr_matrix[i][j] + decay_amount)
+                            
+        self.last_date = current_date
 
     def predict_win_prob(self, blue_team: List[str], orange_team: List[str]) -> tuple[float, float]:
         total_diff = 0

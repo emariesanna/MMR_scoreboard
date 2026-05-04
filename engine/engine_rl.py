@@ -15,7 +15,7 @@ from config import (
     RL_DATE_COL, RL_MATCH_COL, RL_BLUE_TEAM_COLS, RL_MAX_DECAY, RL_ORANGE_TEAM_COLS, RL_BLUE_SCORE_COL, 
     RL_ORANGE_SCORE_COL, RL_OVERTIME_COL, RL_DEACTIVATED_PLAYERS,
 
-    RL_BASE_MMR, RL_GAMMA, RL_MATRIX_GAMMA, RL_BETA, RL_K_FACTOR, RL_BASE_MMR_DELTA, RL_GOAL_DIFFERENCE_FACTOR, 
+    RL_BASE_MMR, RL_GAMMA, RL_MATRIX_GAMMA, RL_MATRIX_DECAY_PER_DAY, RL_BETA, RL_K_FACTOR, RL_BASE_MMR_DELTA, RL_GOAL_DIFFERENCE_FACTOR, 
     RL_BASE_UNCERTAINTY, RL_UNCERTAINTY_DECAY, RL_UNCERTAINTY_INCREASE, RL_MMR_DECAY_FACTOR_PER_DAY, RL_MMR_RECLAIM,
     RL_ENGINE_LOG_FILE
 )
@@ -81,7 +81,7 @@ def get_RL_table(sheet_name):
     inflation = InflationHandler(
         RL_BASE_MMR, logger_name="rl_engine_handlers")
     matrix = RLMatrixHandler(
-        RL_BASE_MMR, RL_BASE_MMR_DELTA, RL_BETA, RL_MATRIX_GAMMA, RL_GOAL_DIFFERENCE_FACTOR[sheet_name])
+        RL_BASE_MMR, RL_BASE_MMR_DELTA, RL_BETA, RL_MATRIX_GAMMA, RL_GOAL_DIFFERENCE_FACTOR[sheet_name], RL_MATRIX_DECAY_PER_DAY)
 
     for _, rows in read_sheet_df(sheet_name).iterrows():
         # Extract match data
@@ -110,6 +110,7 @@ def get_RL_table(sheet_name):
             overtime,
         )
 
+        matrix.process_decay(date_val)
         matrix_prob_blue, matrix_prob_orange = matrix.predict_win_prob(blue_team, orange_team)
         matrix.process_match_outcome(blue_team, orange_team, blue_score, orange_score, overtime)
         

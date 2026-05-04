@@ -16,9 +16,10 @@ RL_ORANGE_SCORE_COL = "Goal_Orange"
 RL_OVERTIME_COL = "Overtime"
 # Hyperparameters
 RL_BASE_MMR = 1000
-RL_BETA = 0.5
+RL_BETA = 0.4
 RL_GAMMA = 800
-RL_MATRIX_GAMMA = 800
+RL_MATRIX_GAMMA = 400
+RL_MATRIX_DECAY_PER_DAY = 0.2
 RL_K_FACTOR = 0.85
 RL_BASE_MMR_DELTA = 25
 RL_GOAL_DIFFERENCE_FACTOR = {"RL_Soccar": 6, "RL_Gridiron": 70, "RL_Hoops": 6, "RL_Dropshot": 3}
@@ -30,7 +31,7 @@ RL_MMR_RECLAIM = 30
 RL_MAX_DECAY = 800
 RL_ENGINE_LOG_FILE = os.path.join(ROOT, "logs", "rl_engine_handlers.log")
 # Players
-RL_DEACTIVATED_PLAYERS = ["Gio", "Andre"]
+RL_DEACTIVATED_PLAYERS = [] # ["Gio", "Andre"]
 RL_HIDDEN_PLAYERS = [] # Players whose MMR is hidden from the leaderboard   
 
 # --- Mario Kart ---
