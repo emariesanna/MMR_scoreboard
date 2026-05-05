@@ -3,7 +3,7 @@ import pandas as pd
 import altair as alt
 from datetime import date
 
-from config import RL_SHEETS, MK_SHEET, FIFA_SHEET, RL_MATCH_COL, MK_MATCH_COL, FIFA_MATCH_COL
+from config import RL_SHEETS, MK_SHEET, FIFA_SHEET, RL_MATCH_COL, MK_MATCH_COL, FIFA_MATCH_COL, RL_MATRIX_GAMMA
 from gsheets import read_sheet_df, append_match, append_mk_race, get_game_players, append_player, read_players_df
 from engine.engine_rl import get_RL_table, UNCERTAINTY
 from engine.engine_fifa import get_fifa_table
@@ -22,8 +22,30 @@ def style_winrate(df_val, df_cnt):
 
 
 def style_matrix_mmr(df_val, df_delta=None):
-    df_text = df_val.copy().astype(object)
+    import numpy as np
     
+    # Sort players by their diagonal value (overall MMR) descending
+    diag_series = pd.Series({p: df_val.loc[p, p] for p in df_val.index if pd.notna(df_val.loc[p, p])})
+    sorted_idx = diag_series.sort_values(ascending=False).index.tolist()
+    missing = [c for c in df_val.columns if c not in sorted_idx]
+    sorted_idx += missing
+    
+    df_val = df_val.loc[sorted_idx, sorted_idx]
+    if df_delta is not None:
+        df_delta = df_delta.loc[sorted_idx, sorted_idx]
+
+    df_text = df_val.copy().astype(object)
+    gmap = pd.DataFrame(np.nan, index=df_val.index, columns=df_val.columns)
+    
+    finite_diffs = [abs(float(df_val.loc[r, c])) for r in df_val.index for c in df_val.columns if r != c and pd.notna(df_val.loc[r, c])]
+    max_abs_diff = max(finite_diffs) if finite_diffs else 1.0
+    
+    min_diag = diag_series.min() if not diag_series.empty else 0.0
+    max_diag = diag_series.max() if not diag_series.empty else 1.0
+    if min_diag == max_diag:
+        min_diag -= 1
+        max_diag += 1
+
     for r in df_val.index:
         for c in df_val.columns:
             v = df_val.loc[r, c]
@@ -33,10 +55,12 @@ def style_matrix_mmr(df_val, df_delta=None):
             
             if r == c:
                 df_text.loc[r, c] = f"{int(round(v))}"
+                gmap.loc[r, c] = (v - min_diag) / (max_diag - min_diag)
             else:
                 diff = v
                 sign = "+" if diff > 0 else ""
                 df_text.loc[r, c] = f"{sign}{int(round(diff))}" if round(diff) != 0 else "0"
+                gmap.loc[r, c] = 0.5 + (v / (2 * max_abs_diff))
 
             if df_delta is not None and pd.notna(df_delta.loc[r, c]):
                 d_val = round(df_delta.loc[r, c])
@@ -44,14 +68,11 @@ def style_matrix_mmr(df_val, df_delta=None):
                     sign_d = "+" if d_val > 0 else ""
                     df_text.loc[r, c] += f" ({sign_d}{int(d_val)})"
 
-    finite_diffs = [abs(float(df_val.loc[r, c])) for r in df_val.index for c in df_val.columns if r != c and pd.notna(df_val.loc[r, c])]
-    max_abs_diff = max(finite_diffs) if finite_diffs else 1.0
-
     return df_text.style.background_gradient(
         cmap='RdYlGn',
-        vmin=-max_abs_diff,
-        vmax=max_abs_diff,
-        gmap=df_val,
+        vmin=0.0,
+        vmax=1.0,
+        gmap=gmap,
         axis=None,
     )
 
@@ -366,6 +387,21 @@ def render_rl():
         with col_1v1_goals:
             st.markdown("#### Goals 1v1 (GF-GA)")
             st.dataframe(style_goals_matrix(df_1v1_goals))
+
+        st.markdown("---")
+        st.subheader("Win Probability vs MMR Difference")
+        st.markdown(f"Win probability as a function of $x$ according to $1 / (1 + 10^{{x / {RL_MATRIX_GAMMA}}})$")
+        
+        import numpy as np
+        x_vals = np.linspace(0, int(RL_MATRIX_GAMMA * 2.5), 200)
+        y_vals = 1 / (1 + 10**(x_vals / RL_MATRIX_GAMMA))
+        df_prob = pd.DataFrame({"x": x_vals, "Prob": y_vals})
+        chart_prob = alt.Chart(df_prob).mark_line(color="#1f77b4").encode(
+            x=alt.X("x:Q", title="x (Difference)"),
+            y=alt.Y("Prob:Q", title="Win Probability", axis=alt.Axis(format="%")),
+            tooltip=[alt.Tooltip("x:Q", format=".0f"), alt.Tooltip("Prob:Q", format=".1%")]
+        )
+        st.altair_chart(chart_prob, width='stretch')
 
 def render_mk():
     selected_sheet = MK_SHEET

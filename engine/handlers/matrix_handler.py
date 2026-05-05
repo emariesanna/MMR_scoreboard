@@ -17,9 +17,10 @@ class MatrixHandler():
         pass
 
 class RLMatrixHandler(MatrixHandler):
-    def __init__(self, base_mmr: float, base_mmr_delta: float, beta: float, gamma: float, goal_difference_factor: float, matrix_decay_per_day: float):
+    def __init__(self, base_mmr: float, base_mmr_delta: float, alpha: float, beta: float, gamma: float, goal_difference_factor: float, matrix_decay_per_day: float):
         super().__init__(base_mmr, base_mmr_delta)
 
+        self.alpha = alpha
         self.beta = beta
         self.gamma = gamma
         self.goal_difference_factor = goal_difference_factor
@@ -76,7 +77,7 @@ class RLMatrixHandler(MatrixHandler):
         orange_team_indices = [self.player_indices[player] for player in orange_team]
 
         blue_won = blue_score > orange_score
-        base_delta = self.base_mmr_delta * (1 + (abs(blue_score - orange_score)-1) / self.goal_difference_factor) * (0.5 if overtime else 1)
+        base_delta = 2 * self.base_mmr_delta * (1 + (abs(blue_score - orange_score) - 1) / self.goal_difference_factor) * (0.5 if overtime else 1)
 
         old_matrix = [row[:] for row in self.mmr_matrix]
         outcome = 1 if blue_won else 0
@@ -88,7 +89,7 @@ class RLMatrixHandler(MatrixHandler):
             for orange_updating in orange_team_indices:
 
                 e_blue = 1 / (1 + 10**(old_matrix[orange_updating][blue_updating] / self.gamma))
-                direct_delta = base_delta * (outcome - e_blue) * (1 - self.beta if collateral_matches > 0 else 1)
+                direct_delta = base_delta * (outcome - e_blue) * self.beta / (collateral_matches + self.beta)
                 total_delta = direct_delta
 
                 print(f"Updating {index_to_player[blue_updating]} vs {index_to_player[orange_updating]} | old_MMR: {old_matrix[blue_updating][orange_updating]:.4f} | e_blue: {e_blue:.4f} | score: {blue_score}-{orange_score} OT: {overtime} | direct_delta: {direct_delta:.4f}")
@@ -100,7 +101,7 @@ class RLMatrixHandler(MatrixHandler):
                                 continue
                         
                             e_blue = 1 / (1 + 10**(old_matrix[orange][blue] / self.gamma))
-                            collateral_delta = base_delta * (outcome - e_blue) * (self.beta) / collateral_matches
+                            collateral_delta = base_delta * (outcome - e_blue) * (1 / (collateral_matches + self.beta))
                             total_delta += collateral_delta
 
                             print(f"Collateral {index_to_player[blue]} vs {index_to_player[orange]} | old_MMR: {old_matrix[orange][blue]:.4f} | e_blue: {e_blue:.4f} | contribution: {collateral_delta:.4f}") 
@@ -131,56 +132,33 @@ class RLMatrixHandler(MatrixHandler):
                 if i == j:
                     continue
 
-                direct_value = 1 / (1 + 10**(-self.mmr_matrix[i][j] / self.gamma))
-                avg_collateral_value = 0
+                player_contribution = 0
 
-                print(f"Direct MMR vs {list(self.player_indices.keys())[j]}: {direct_value:.4f}")
+                direct_value = 1 / (1 + 10**(-self.mmr_matrix[i][j] / self.gamma))
+                direct_value += 0.5
+                direct_value *= self.alpha / (n - 2 + self.alpha)
+                direct_value /= (n - 1)
+                direct_value *= self.base_mmr
+                player_contribution += direct_value
+                global_mmrs[player] += direct_value
+
+                print(f"Direct MMR vs {list(self.player_indices.keys())[j]}: {direct_value:.4f} (neutral: {self.base_mmr * self.alpha / (n - 2 + self.alpha) / (n - 1):.4f})")
 
                 for k in range(n):
                     if k == i or k == j:
                         continue
 
                     collateral_contribution = 1 / (1 + 10**(-(self.mmr_matrix[i][k] - self.mmr_matrix[j][k]) / self.gamma))
-                    avg_collateral_value += collateral_contribution
+                    collateral_contribution += 0.5
+                    collateral_contribution *= (1 / (n - 2 + self.alpha))
+                    collateral_contribution /= (n - 1)
+                    collateral_contribution *= self.base_mmr
+                    player_contribution += collateral_contribution
+                    global_mmrs[player] += collateral_contribution
 
-                    print(f"Collateral contribution from {list(self.player_indices.keys())[k]}: {collateral_contribution:.4f}")
-
-                avg_collateral_value /= (n - 2)
-
-                global_mmrs[player] += direct_value + avg_collateral_value
-
-            global_mmrs[player] *= self.base_mmr / (n - 1)
-            
-        return global_mmrs
-    
-    def get_global_matrix_mmrs_old(self) -> dict:
-        n = len(self.player_indices)
-        if n == 0:
-            return {}
-
-        global_mmrs = {}
-        for player, i in self.player_indices.items():
-            weighted_score_sum = 0
-            
-            for j in range(n):
-                if i == j:
-                    continue
-
-                col_avg = 0
-                for k in range(n):
-                    if k == i or k == j:
-                        continue
-                    col_avg += self.mmr_matrix[k][j]
-                col_avg /= n - 1
+                    print(f"Collateral contribution from {list(self.player_indices.keys())[k]}: {collateral_contribution:.4f} (neutral: {self.base_mmr / (n - 2 + self.alpha) / (n - 1):.4f})")
                 
-                m_ij = self.mmr_matrix[i][j]
-
-                weight = 1 / (1 + 10**(col_avg / self.gamma))
-                weight += 0.5
-                
-                weighted_score_sum += (m_ij * weight)
-                
-            global_mmrs[player] = weighted_score_sum
+                print(f"Total contribution from {list(self.player_indices.keys())[j]}: {player_contribution:.4f} (neutral: {self.base_mmr / (n - 1):.4f})")
             
         return global_mmrs
 
@@ -197,7 +175,7 @@ def print_matrix(matrix: List[List[float]], player_indices: dict):
 
 
 if __name__ == "__main__":
-    handler = RLMatrixHandler(base_mmr=0, base_mmr_delta=30, beta=0.5, gamma=800, goal_difference_factor=6)
+    handler = RLMatrixHandler(base_mmr=0, base_mmr_delta=30, beta=2.0, gamma=800, goal_difference_factor=6)
     handler.process_match_outcome(
         blue_team=["Alice", "Bob"], orange_team=["Charlie", "David"], 
         blue_score=3, orange_score=1, overtime=False

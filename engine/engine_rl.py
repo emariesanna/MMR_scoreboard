@@ -12,7 +12,7 @@ from .handlers.decay_handler import CappedDecayHandler
 from .handlers.inflation_handler import InflationHandler
 from utils import format_date, round_dict_values, convert_bool, sum_dicts, sum_default_dicts
 from config import (
-    RL_DATE_COL, RL_MATCH_COL, RL_BLUE_TEAM_COLS, RL_MAX_DECAY, RL_ORANGE_TEAM_COLS, RL_BLUE_SCORE_COL, 
+    RL_ALPHA, RL_DATE_COL, RL_MATCH_COL, RL_BLUE_TEAM_COLS, RL_MAX_DECAY, RL_ORANGE_TEAM_COLS, RL_BLUE_SCORE_COL, 
     RL_ORANGE_SCORE_COL, RL_OVERTIME_COL, RL_DEACTIVATED_PLAYERS,
 
     RL_BASE_MMR, RL_GAMMA, RL_MATRIX_GAMMA, RL_MATRIX_DECAY_PER_DAY, RL_BETA, RL_K_FACTOR, RL_BASE_MMR_DELTA, RL_GOAL_DIFFERENCE_FACTOR, 
@@ -81,7 +81,7 @@ def get_RL_table(sheet_name):
     inflation = InflationHandler(
         RL_BASE_MMR, logger_name="rl_engine_handlers")
     matrix = RLMatrixHandler(
-        RL_BASE_MMR, RL_BASE_MMR_DELTA, RL_BETA, RL_MATRIX_GAMMA, RL_GOAL_DIFFERENCE_FACTOR[sheet_name], RL_MATRIX_DECAY_PER_DAY)
+        RL_BASE_MMR, RL_BASE_MMR_DELTA, RL_ALPHA, RL_BETA, RL_MATRIX_GAMMA, RL_GOAL_DIFFERENCE_FACTOR[sheet_name], RL_MATRIX_DECAY_PER_DAY)
 
     for _, rows in read_sheet_df(sheet_name).iterrows():
         # Extract match data

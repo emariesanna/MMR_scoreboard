@@ -22,7 +22,7 @@ class GoalDifferenceHandler:
         pass
 
     def _calculate_goal_deltas(self, players: List[str], a_score: int, b_score: int, base_deltas: Dict[str, float]):
-        goal_diff_factor = (abs(a_score - b_score) / self.goal_difference_factor)
+        goal_diff_factor = ((abs(a_score - b_score) - 1) / self.goal_difference_factor)
         
         for player in players:
             self.goal_deltas[player] = max(min(base_deltas.get(player, 0) * goal_diff_factor, self.base_mmr_delta), -self.base_mmr_delta)
