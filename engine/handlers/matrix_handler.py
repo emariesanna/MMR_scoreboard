@@ -21,7 +21,6 @@ class RLMatrixHandler(MatrixHandler):
         super().__init__(base_mmr, base_mmr_delta)
 
         self.alpha = alpha
-        self.beta = beta
         self.gamma = gamma
         self.goal_difference_factor = goal_difference_factor
         self.matrix_decay_per_day = matrix_decay_per_day
@@ -45,22 +44,6 @@ class RLMatrixHandler(MatrixHandler):
                             
         self.last_date = current_date
 
-    def predict_win_prob(self, blue_team: List[str], orange_team: List[str]) -> tuple[float, float]:
-        total_diff = 0
-        valid_pairs = 0
-        for blue in blue_team:
-            for orange in orange_team:
-                if blue in self.player_indices and orange in self.player_indices:
-                    b_idx = self.player_indices[blue]
-                    o_idx = self.player_indices[orange]
-                    total_diff += self.mmr_matrix[b_idx][o_idx]
-                    valid_pairs += 1
-        
-        avg_diff = total_diff / valid_pairs if valid_pairs > 0 else 0
-        prob_blue = 1 / (1 + 10 ** (-avg_diff / self.gamma))
-        prob_orange = 1 - prob_blue
-        return prob_blue, prob_orange
-
     def process_match_outcome(self,
                               blue_team: List[str], orange_team: List[str], 
                               blue_score: int, orange_score: int, overtime: bool):
@@ -79,54 +62,59 @@ class RLMatrixHandler(MatrixHandler):
         blue_won = blue_score > orange_score
         base_delta = 2 * self.base_mmr_delta * (1 + (abs(blue_score - orange_score) - 1) / self.goal_difference_factor) * (0.5 if overtime else 1)
 
-        old_matrix = [row[:] for row in self.mmr_matrix]
-        outcome = 1 if blue_won else 0
-        collateral_matches = (len(blue_team_indices) * len(orange_team_indices)) - 1
-        
-        index_to_player = {idx: p for p, idx in self.player_indices.items()}
+        blue_team_size = len(blue_team)
+        orange_team_size = len(orange_team)
+
+        n = max(blue_team_size, orange_team_size)
+        n_2 = n**2
+
+        match n:
+            case 1:
+                base_delta *= 1.5
+            case 2:
+                pass
+            case 3:
+                base_delta *= 2/3
+            case 4:
+                base_delta *= 1/2
+
+        if blue_team_size > orange_team_size:
+            e_blue = (blue_team_size - orange_team_size) * blue_team_size / n_2
+            # print(f"Blue size: {blue_team_size}, Orange size: {orange_team_size}, initial e_blue: {e_blue:.4f})")
+        else:
+            e_blue = 0
+
+        for blue in blue_team_indices:
+            for orange in orange_team_indices:
+                e_blue += 1 / (1 + 10**(self.mmr_matrix[orange][blue] / self.gamma)) / n_2
+            
+        blue_delta = base_delta * (blue_won - e_blue)
 
         for blue_updating in blue_team_indices:
             for orange_updating in orange_team_indices:
-
-                e_blue = 1 / (1 + 10**(old_matrix[orange_updating][blue_updating] / self.gamma))
-                direct_delta = base_delta * (outcome - e_blue) * self.beta / (collateral_matches + self.beta)
-                total_delta = direct_delta
-
-                print(f"Updating {index_to_player[blue_updating]} vs {index_to_player[orange_updating]} | old_MMR: {old_matrix[blue_updating][orange_updating]:.4f} | e_blue: {e_blue:.4f} | score: {blue_score}-{orange_score} OT: {overtime} | direct_delta: {direct_delta:.4f}")
-
-                if collateral_matches > 0:
-                    for blue in blue_team_indices:
-                        for orange in orange_team_indices:
-                            if (blue == blue_updating and orange == orange_updating):
-                                continue
-                        
-                            e_blue = 1 / (1 + 10**(old_matrix[orange][blue] / self.gamma))
-                            collateral_delta = base_delta * (outcome - e_blue) * (1 / (collateral_matches + self.beta))
-                            total_delta += collateral_delta
-
-                            print(f"Collateral {index_to_player[blue]} vs {index_to_player[orange]} | old_MMR: {old_matrix[orange][blue]:.4f} | e_blue: {e_blue:.4f} | contribution: {collateral_delta:.4f}") 
-
-                self.mmr_matrix[blue_updating][orange_updating] += total_delta
-                self.mmr_matrix[orange_updating][blue_updating] -= total_delta
+                self.mmr_matrix[orange_updating][blue_updating] -= blue_delta
+                self.mmr_matrix[blue_updating][orange_updating] += blue_delta
 
         global_mmrs = self.get_global_matrix_mmrs()
         for p, i in self.player_indices.items():
             self.mmr_matrix[i][i] = global_mmrs[p]
 
-        return
+        # print(f"Blue Win Prob: {e_blue:.4f} | Blue Delta: {blue_delta:.4f}")
+
+        return e_blue, 1 - e_blue
     
     def get_global_matrix_mmrs(self) -> dict:
         n = len(self.player_indices)
         if n == 0:
             return {}
         
-        print("\n\nCalculating global MMRs:")
+        # print("\n\nCalculating global MMRs:")
 
         global_mmrs = {}
         for player, i in self.player_indices.items():
             global_mmrs[player] = 0
 
-            print(f"\nPlayer: {player}")
+            # print(f"\nPlayer: {player}")
 
             for j in range(n):
                 if i == j:
@@ -142,7 +130,7 @@ class RLMatrixHandler(MatrixHandler):
                 player_contribution += direct_value
                 global_mmrs[player] += direct_value
 
-                print(f"Direct MMR vs {list(self.player_indices.keys())[j]}: {direct_value:.4f} (neutral: {self.base_mmr * self.alpha / (n - 2 + self.alpha) / (n - 1):.4f})")
+                # print(f"Direct MMR vs {list(self.player_indices.keys())[j]}: {direct_value:.4f} (neutral: {self.base_mmr * self.alpha / (n - 2 + self.alpha) / (n - 1):.4f})")
 
                 for k in range(n):
                     if k == i or k == j:
@@ -156,9 +144,9 @@ class RLMatrixHandler(MatrixHandler):
                     player_contribution += collateral_contribution
                     global_mmrs[player] += collateral_contribution
 
-                    print(f"Collateral contribution from {list(self.player_indices.keys())[k]}: {collateral_contribution:.4f} (neutral: {self.base_mmr / (n - 2 + self.alpha) / (n - 1):.4f})")
+                    # print(f"Collateral contribution from {list(self.player_indices.keys())[k]}: {collateral_contribution:.4f} (neutral: {self.base_mmr / (n - 2 + self.alpha) / (n - 1):.4f})")
                 
-                print(f"Total contribution from {list(self.player_indices.keys())[j]}: {player_contribution:.4f} (neutral: {self.base_mmr / (n - 1):.4f})")
+                # print(f"Total contribution from {list(self.player_indices.keys())[j]}: {player_contribution:.4f} (neutral: {self.base_mmr / (n - 1):.4f})")
             
         return global_mmrs
 

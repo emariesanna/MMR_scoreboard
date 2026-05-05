@@ -8,7 +8,7 @@ from gsheets import read_sheet_df, append_match, append_mk_race, get_game_player
 from engine.engine_rl import get_RL_table, UNCERTAINTY
 from engine.engine_fifa import get_fifa_table
 from engine.engine_mk import get_mk_table
-from presenter.presenter_rl import prepare_match_table, prepare_leaderboard, prepare_mmr_history, prepare_daily_mmr_delta_history, prepare_uncertainty_history, prepare_winrate_matrices, prepare_date_changes, prepare_1v1_winrate_matrix, prepare_1v1_goals_matrix, prepare_matrix_mmr_history
+from presenter.presenter_rl import prepare_match_table, prepare_leaderboard, prepare_mmr_history, prepare_daily_mmr_delta_history, prepare_uncertainty_history, prepare_winrate_matrices, prepare_date_changes, prepare_1v1_winrate_matrix, prepare_1v1_goals_matrix, prepare_matrix_mmr_history, prepare_global_matrix_mmr_history
 from presenter.presenter_mk import prepare_mk_match_table, prepare_mk_leaderboard, prepare_mk_mmr_history, prepare_mk_daily_mmr_delta_history, prepare_mk_date_changes, prepare_mk_avg_position, prepare_mk_uncertainty_history, prepare_mk_winrate_matrices
 from presenter.presenter_fifa import prepare_fifa_match_table, prepare_fifa_leaderboard, prepare_fifa_mmr_history, prepare_fifa_daily_mmr_delta_history, prepare_fifa_daily_standings_and_suggested_matches, prepare_fifa_alltime_standings_and_suggested_matches, prepare_fifa_uncertainty_history, prepare_fifa_winrate_matrices, prepare_fifa_goals_matrix, prepare_fifa_date_changes
 
@@ -281,6 +281,10 @@ def render_rl():
         df_mmr = prepare_mmr_history(table)
         st.markdown("#### MMR History (match by match)")
         plot_line_chart(df_mmr, "Match", [c for c in df_mmr.columns if c != "Match"], rl_colors, vline_x_values=date_changes)
+
+        df_global_matrix = prepare_global_matrix_mmr_history(table)
+        st.markdown("#### Global Matrix MMR History (match by match)")
+        plot_line_chart(df_global_matrix, "Match", [c for c in df_global_matrix.columns if c != "Match"], rl_colors, vline_x_values=date_changes)
 
         st.markdown("---")
         st.subheader("Matrix MMR Match by Match")

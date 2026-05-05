@@ -97,7 +97,7 @@ def get_RL_table(sheet_name):
         if any(player in RL_DEACTIVATED_PLAYERS for player in blue_team + orange_team):
             continue # Skip matches involving deleted players
 
-        print (f"\nProcessing match {match_num} | {date_str} | Blue: {blue_team} ({blue_score}) vs Orange: {orange_team} ({orange_score}) OT: {overtime})")
+        # print (f"\nProcessing match {match_num} | {date_str} | Blue: {blue_team} ({blue_score}) vs Orange: {orange_team} ({orange_score}) OT: {overtime})")
 
         logger.info(
             "MATCH_START | date=%s | match=%s | blue=%s | orange=%s | score=%s-%s | overtime=%s",
@@ -110,9 +110,7 @@ def get_RL_table(sheet_name):
             overtime,
         )
 
-        matrix.process_decay(date_val)
-        matrix_prob_blue, matrix_prob_orange = matrix.predict_win_prob(blue_team, orange_team)
-        matrix.process_match_outcome(blue_team, orange_team, blue_score, orange_score, overtime)
+        matrix_prob_blue, matrix_prob_orange = matrix.process_match_outcome(blue_team, orange_team, blue_score, orange_score, overtime)
         
         # raw_mmrs --> match_deltas
         team_match.process_match_outcome(

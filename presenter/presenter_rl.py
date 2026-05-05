@@ -353,4 +353,27 @@ def prepare_matrix_mmr_history(table):
         
     return history_dfs
 
+def prepare_global_matrix_mmr_history(table):
+    active_players = [p for p in table[-1]["Total MMR"].keys() if p not in RL_HIDDEN_PLAYERS]
+    current_mmr = {p: RL_BASE_MMR for p in active_players}
+    history = [{"Match": 0, **current_mmr}]
+
+    for i, entry in enumerate(table, start=1):
+        matrix = entry.get("Matrix MMR", [])
+        indices = entry.get("Matrix Indices", {})
+        
+        if matrix and indices:
+            index_to_player = {v: k for k, v in indices.items()}
+            for r_idx, row in enumerate(matrix):
+                p1 = index_to_player.get(r_idx)
+                if p1 not in active_players:
+                    continue
+                # Diagonal value is the global mmr for p1
+                if r_idx < len(row):
+                    current_mmr[p1] = row[r_idx]
+                
+        history.append({"Match": i, **current_mmr})
+
+    return pd.DataFrame(history)
+
 
