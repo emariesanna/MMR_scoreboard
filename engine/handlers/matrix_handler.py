@@ -1,4 +1,5 @@
 from abc import abstractmethod
+import math
 from typing import Any, List
 
 class MatrixHandler():
@@ -19,8 +20,9 @@ class MatrixHandler():
 class RLMatrixHandler(MatrixHandler):
     def __init__(self, base_mmr: float, base_mmr_delta: float, alpha: float, beta: float, gamma: float, goal_difference_factor: float, matrix_decay_per_day: float):
         super().__init__(base_mmr, base_mmr_delta)
-
+        self.match_count = 0
         self.alpha = alpha
+        self.beta = beta
         self.gamma = gamma
         self.goal_difference_factor = goal_difference_factor
         self.matrix_decay_per_day = matrix_decay_per_day
@@ -86,14 +88,14 @@ class RLMatrixHandler(MatrixHandler):
 
         for blue in blue_team_indices:
             for orange in orange_team_indices:
-                e_blue += 1 / (1 + 10**(self.mmr_matrix[orange][blue] / self.gamma)) / n_2
+                e_blue += 1 / (1 + 10**(self.mmr_matrix[blue][orange] / self.gamma)) / n_2
             
         blue_delta = base_delta * (blue_won - e_blue)
 
         for blue_updating in blue_team_indices:
             for orange_updating in orange_team_indices:
-                self.mmr_matrix[orange_updating][blue_updating] -= blue_delta
-                self.mmr_matrix[blue_updating][orange_updating] += blue_delta
+                self.mmr_matrix[orange_updating][blue_updating] += blue_delta
+                self.mmr_matrix[blue_updating][orange_updating] -= blue_delta
 
         global_mmrs = self.get_global_matrix_mmrs()
         for p, i in self.player_indices.items():
@@ -104,6 +106,9 @@ class RLMatrixHandler(MatrixHandler):
         return e_blue, 1 - e_blue
     
     def get_global_matrix_mmrs(self) -> dict:
+
+        self.match_count += 1
+
         n = len(self.player_indices)
         if n == 0:
             return {}
@@ -113,41 +118,40 @@ class RLMatrixHandler(MatrixHandler):
         global_mmrs = {}
         for player, i in self.player_indices.items():
             global_mmrs[player] = 0
+            global_prob = 0
 
-            # print(f"\nPlayer: {player}")
+            gamma = self.gamma / self.beta
+
+            if self.match_count == 195: print(f"\nPlayer: {player}")
 
             for j in range(n):
                 if i == j:
                     continue
-
-                player_contribution = 0
-
-                direct_value = 1 / (1 + 10**(-self.mmr_matrix[i][j] / self.gamma))
-                direct_value += 0.5
-                direct_value *= self.alpha / (n - 2 + self.alpha)
-                direct_value /= (n - 1)
-                direct_value *= self.base_mmr
-                player_contribution += direct_value
-                global_mmrs[player] += direct_value
-
-                # print(f"Direct MMR vs {list(self.player_indices.keys())[j]}: {direct_value:.4f} (neutral: {self.base_mmr * self.alpha / (n - 2 + self.alpha) / (n - 1):.4f})")
+                
+                direct_mmr = self.mmr_matrix[j][i]
+                collateral_prob = 0
 
                 for k in range(n):
                     if k == i or k == j:
                         continue
-
-                    collateral_contribution = 1 / (1 + 10**(-(self.mmr_matrix[i][k] - self.mmr_matrix[j][k]) / self.gamma))
-                    collateral_contribution += 0.5
-                    collateral_contribution *= (1 / (n - 2 + self.alpha))
-                    collateral_contribution /= (n - 1)
-                    collateral_contribution *= self.base_mmr
-                    player_contribution += collateral_contribution
-                    global_mmrs[player] += collateral_contribution
-
-                    # print(f"Collateral contribution from {list(self.player_indices.keys())[k]}: {collateral_contribution:.4f} (neutral: {self.base_mmr / (n - 2 + self.alpha) / (n - 1):.4f})")
+                    
+                    partial_collateral_prob = (1 / (1 + 10**(-(self.mmr_matrix[k][i] - self.mmr_matrix[k][j]) / gamma))) / (n-2)
+                    collateral_prob += partial_collateral_prob
                 
-                # print(f"Total contribution from {list(self.player_indices.keys())[j]}: {player_contribution:.4f} (neutral: {self.base_mmr / (n - 1):.4f})")
+                collateral_mmr = - math.log10((1 - collateral_prob) / collateral_prob) * gamma
+                player_mmr = (direct_mmr * self.alpha + collateral_mmr) / (self.alpha + 1)
+                
+                if self.match_count == 195: print(
+                    f"MMR from {list(self.player_indices.keys())[j]}: {direct_mmr * self.alpha / (self.alpha + 1):.4f} + {collateral_mmr / (self.alpha + 1):.4f} = {player_mmr:.4f}")
+                
+                player_prob = 1 / (1 + 10**(-player_mmr / gamma)) / (n-1)
+                global_prob += player_prob
+
+            if self.match_count == 195: print(
+                    f"Global Probability: {global_prob:.4f}")
             
+            global_mmrs[player] = - math.log10((1 - global_prob) / global_prob) * gamma + self.base_mmr
+                    
         return global_mmrs
 
 def print_matrix(matrix: List[List[float]], player_indices: dict):

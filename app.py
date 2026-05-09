@@ -289,7 +289,7 @@ def render_rl():
         st.markdown("---")
         st.subheader("Matrix MMR Match by Match")
         st.markdown(
-            "- **Matrix**: How the row player performs relative to the column player (value > 0 means row player is dominating).\n"
+            "- **Matrix**: How the column player performs relative to the row player (value > 0 means column player is dominating).\n"
             "- Select a match below to see the state of the MMR Matrix after that match."
         )
         
