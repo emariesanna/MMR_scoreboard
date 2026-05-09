@@ -112,47 +112,38 @@ class RLMatrixHandler(MatrixHandler):
         n = len(self.player_indices)
         if n == 0:
             return {}
-        
-        # print("\n\nCalculating global MMRs:")
 
         global_mmrs = {}
         for player, i in self.player_indices.items():
             global_mmrs[player] = 0
             global_prob = 0
 
-            gamma = self.gamma / self.beta
-
-            if self.match_count == 195: print(f"\nPlayer: {player}")
-
             for j in range(n):
                 if i == j:
                     continue
                 
-                direct_mmr = self.mmr_matrix[j][i]
-                collateral_prob = 0
+                direct_prob = self._mmr_to_prob(self.mmr_matrix[j][i])
+                avg_opponent_prob = 0
 
                 for k in range(n):
                     if k == i or k == j:
                         continue
                     
-                    partial_collateral_prob = (1 / (1 + 10**(-(self.mmr_matrix[k][i] - self.mmr_matrix[k][j]) / gamma))) / (n-2)
-                    collateral_prob += partial_collateral_prob
+                    avg_opponent_prob += self._mmr_to_prob(self.mmr_matrix[k][j]) / (n-2)
                 
-                collateral_mmr = - math.log10((1 - collateral_prob) / collateral_prob) * gamma
-                player_mmr = (direct_mmr * self.alpha + collateral_mmr) / (self.alpha + 1)
-                
-                if self.match_count == 195: print(
-                    f"MMR from {list(self.player_indices.keys())[j]}: {direct_mmr * self.alpha / (self.alpha + 1):.4f} + {collateral_mmr / (self.alpha + 1):.4f} = {player_mmr:.4f}")
-                
-                player_prob = 1 / (1 + 10**(-player_mmr / gamma)) / (n-1)
-                global_prob += player_prob
-
-            if self.match_count == 195: print(
-                    f"Global Probability: {global_prob:.4f}")
+                indirect_prob = direct_prob * avg_opponent_prob
+                adapted_indirect_prob = indirect_prob ** 0.5
+                global_prob += adapted_indirect_prob / (n-1)
             
-            global_mmrs[player] = - math.log10((1 - global_prob) / global_prob) * gamma + self.base_mmr
+            global_mmrs[player] = self._prob_to_mmr(global_prob) + self.base_mmr
                     
         return global_mmrs
+    
+    def _mmr_to_prob(self, mmr: float) -> float:
+        return 1 / (1 + 10**(-mmr / self.gamma))
+
+    def _prob_to_mmr(self, prob: float) -> float:
+        return - math.log10((1 - prob) / prob) * self.gamma
 
 def print_matrix(matrix: List[List[float]], player_indices: dict):
     if not matrix:
@@ -164,6 +155,7 @@ def print_matrix(matrix: List[List[float]], player_indices: dict):
     print("\t".join(header))
     for i, row in enumerate(matrix):
         print(f"{index_to_player[i]}\t" + "\t".join(f"{mmr:.2f}" for mmr in row))
+
 
 
 if __name__ == "__main__":
