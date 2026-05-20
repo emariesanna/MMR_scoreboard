@@ -32,7 +32,7 @@ RL_MMR_RECLAIM = 30
 RL_MAX_DECAY = 800
 RL_ENGINE_LOG_FILE = os.path.join(ROOT, "logs", "rl_engine_handlers.log")
 # Players
-RL_DEACTIVATED_PLAYERS = [] # ["Gio", "Andre"]
+RL_DEACTIVATED_PLAYERS = ["Andre"] # ["Gio", "Andre"]
 RL_HIDDEN_PLAYERS = [] # Players whose MMR is hidden from the leaderboard   
 
 # --- Mario Kart ---

@@ -8,9 +8,11 @@ from gsheets import read_sheet_df, append_match, append_mk_race, get_game_player
 from engine.engine_rl import get_RL_table, UNCERTAINTY
 from engine.engine_fifa import get_fifa_table
 from engine.engine_mk import get_mk_table
-from presenter.presenter_rl import prepare_match_table, prepare_leaderboard, prepare_mmr_history, prepare_daily_mmr_delta_history, prepare_uncertainty_history, prepare_winrate_matrices, prepare_date_changes, prepare_1v1_winrate_matrix, prepare_1v1_goals_matrix, prepare_matrix_mmr_history, prepare_global_matrix_mmr_history
+from presenter.presenter_rl import prepare_match_table, prepare_leaderboard, prepare_mmr_history, prepare_daily_mmr_delta_history, prepare_uncertainty_history, prepare_winrate_matrices, prepare_date_changes, prepare_1v1_winrate_matrix, prepare_1v1_goals_matrix, prepare_matrix_mmr_history, prepare_global_matrix_mmr_history, prepare_global_matrix_daily_mmr_delta_history
 from presenter.presenter_mk import prepare_mk_match_table, prepare_mk_leaderboard, prepare_mk_mmr_history, prepare_mk_daily_mmr_delta_history, prepare_mk_date_changes, prepare_mk_avg_position, prepare_mk_uncertainty_history, prepare_mk_winrate_matrices
 from presenter.presenter_fifa import prepare_fifa_match_table, prepare_fifa_leaderboard, prepare_fifa_mmr_history, prepare_fifa_daily_mmr_delta_history, prepare_fifa_daily_standings_and_suggested_matches, prepare_fifa_alltime_standings_and_suggested_matches, prepare_fifa_uncertainty_history, prepare_fifa_winrate_matrices, prepare_fifa_goals_matrix, prepare_fifa_date_changes
+
+OLD_MMR = False # Whether to show the old MMR history chart (before matrix-based update)
 
 def style_winrate(df_val, df_cnt):
     df_text = df_val.copy().astype(object)
@@ -278,9 +280,10 @@ def render_rl():
 
         date_changes = prepare_date_changes(table)
 
-        df_mmr = prepare_mmr_history(table)
-        st.markdown("#### MMR History (match by match)")
-        plot_line_chart(df_mmr, "Match", [c for c in df_mmr.columns if c != "Match"], rl_colors, vline_x_values=date_changes)
+        if OLD_MMR:
+            df_mmr = prepare_mmr_history(table)
+            st.markdown("#### MMR History (match by match)")
+            plot_line_chart(df_mmr, "Match", [c for c in df_mmr.columns if c != "Match"], rl_colors, vline_x_values=date_changes)
 
         df_global_matrix = prepare_global_matrix_mmr_history(table)
         st.markdown("#### Global Matrix MMR History (match by match)")
@@ -338,7 +341,11 @@ def render_rl():
         col_leaderboard, col_daily = st.columns(2)
 
         with col_leaderboard:
-            df_lb = prepare_leaderboard(table)
+            if OLD_MMR:
+                df_lb = prepare_leaderboard(table)
+            else:
+                df_lb = prepare_global_matrix_mmr_history(table).drop(columns=['Match']).iloc[-1].reset_index()
+                df_lb.columns = ["Player", "MMR"]
             st.markdown("#### Current MMR")
             domain_colors = [p for p in df_lb["Player"] if p in rl_colors]
             range_colors = [rl_colors[p] for p in domain_colors]
@@ -351,7 +358,10 @@ def render_rl():
             st.altair_chart(chart, width='stretch')
 
         with col_daily:
-            df_daily, last_date = prepare_daily_mmr_delta_history(table)
+            if OLD_MMR:
+                df_daily, last_date = prepare_daily_mmr_delta_history(table)
+            else:
+                df_daily, last_date = prepare_global_matrix_daily_mmr_delta_history(table)
             st.markdown(f"#### MMR Delta - Last Session ({last_date})")
             n_matches = int(df_daily["Match"].max())
             plot_line_chart(df_daily, "Match", [c for c in df_daily.columns if c != "Match"], rl_colors, tick_values=list(range(n_matches + 1)))

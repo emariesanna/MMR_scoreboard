@@ -47,6 +47,23 @@ def prepare_leaderboard(table):
     df.columns = ["Player", "MMR"]
     return df
 
+def prepare_matrix_leaderboard(table):
+    last_matrix = table[-1].get("Matrix MMR", [])
+    indices = table[-1].get("Matrix Indices", {})
+    index_to_player = {v: k for k, v in indices.items()}
+
+    data = []
+    for idx, row in enumerate(last_matrix):
+        player = index_to_player.get(idx)
+        if player and player not in RL_HIDDEN_PLAYERS:
+            mmr = row[idx] if idx < len(row) else RL_BASE_MMR
+            data.append((player, mmr))
+
+    df = pd.DataFrame(data, columns=["Player", "Matrix MMR"])
+    df["Matrix MMR"] = df["Matrix MMR"].astype(int)
+    df = df.sort_values("Matrix MMR", ascending=False).reset_index(drop=True)
+    return df
+
 
 def prepare_mmr_history(table):
     active_players = [p for p in table[-1]["Total MMR"].keys() if p not in RL_HIDDEN_PLAYERS]
@@ -99,6 +116,27 @@ def prepare_daily_mmr_delta_history(table):
 
     return pd.DataFrame(history), last_date
 
+
+def prepare_global_matrix_daily_mmr_delta_history(table):
+    df_global = prepare_global_matrix_mmr_history(table)
+    last_date = table[-1]["Date"]
+    last_day_matches = [i+1 for i, e in enumerate(table) if e["Date"] == last_date]
+    start_match_idx = last_day_matches[0] - 1
+    start_mmr = df_global.loc[start_match_idx]
+    
+    players_in_last_day = set()
+    for entry in [e for e in table if e["Date"] == last_date]:
+        players_in_last_day.update(entry["Blue Team"] + entry["Orange Team"])
+    players_in_last_day = {p for p in players_in_last_day if p not in RL_HIDDEN_PLAYERS}
+    
+    cols_to_keep = ["Match"] + list(players_in_last_day)
+    df_last_day = df_global.loc[[start_match_idx] + last_day_matches, cols_to_keep].copy()
+    
+    for p in players_in_last_day:
+        df_last_day[p] = pd.to_numeric(df_last_day[p]) - pd.to_numeric(start_mmr[p])
+        
+    df_last_day["Match"] = list(range(len(df_last_day)))
+    return df_last_day.reset_index(drop=True), last_date
 
 def prepare_winrate_matrices(table):
     active_players = [p for p in table[-1]["Total MMR"].keys() if p not in RL_HIDDEN_PLAYERS]
