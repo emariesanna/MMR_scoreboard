@@ -5,14 +5,23 @@ from datetime import date
 
 from config import RL_SHEETS, MK_SHEET, FIFA_SHEET, RL_MATCH_COL, MK_MATCH_COL, FIFA_MATCH_COL, RL_MATRIX_GAMMA
 from gsheets import read_sheet_df, append_match, append_mk_race, get_game_players, append_player, read_players_df
-from engine.engine_rl import get_RL_table, UNCERTAINTY
+from engine.engineV2 import get_RL_table, predict_win_probability, UNCERTAINTY
 from engine.engine_fifa import get_fifa_table
 from engine.engine_mk import get_mk_table
 from presenter.presenter_rl import prepare_match_table, prepare_leaderboard, prepare_mmr_history, prepare_daily_mmr_delta_history, prepare_uncertainty_history, prepare_winrate_matrices, prepare_date_changes, prepare_1v1_winrate_matrix, prepare_1v1_goals_matrix, prepare_matrix_mmr_history, prepare_global_matrix_mmr_history, prepare_global_matrix_daily_mmr_delta_history
+from presenter.presenterV2 import prepare_model_probability_matrix, prepare_ranking_intervals, prepare_victory_matrix
 from presenter.presenter_mk import prepare_mk_match_table, prepare_mk_leaderboard, prepare_mk_mmr_history, prepare_mk_daily_mmr_delta_history, prepare_mk_date_changes, prepare_mk_avg_position, prepare_mk_uncertainty_history, prepare_mk_winrate_matrices
 from presenter.presenter_fifa import prepare_fifa_match_table, prepare_fifa_leaderboard, prepare_fifa_mmr_history, prepare_fifa_daily_mmr_delta_history, prepare_fifa_daily_standings_and_suggested_matches, prepare_fifa_alltime_standings_and_suggested_matches, prepare_fifa_uncertainty_history, prepare_fifa_winrate_matrices, prepare_fifa_goals_matrix, prepare_fifa_date_changes
 
 OLD_MMR = False # Whether to show the old MMR history chart (before matrix-based update)
+
+
+def _neutral_diagonal_styles(df_val):
+    """Return CSS styles that color only the square matrix diagonal."""
+    styles = pd.DataFrame("", index=df_val.index, columns=df_val.columns)
+    for player in df_val.index.intersection(df_val.columns):
+        styles.loc[player, player] = "background-color: #33CCCC; color: #111827;"
+    return styles
 
 def style_winrate(df_val, df_cnt):
     df_text = df_val.copy().astype(object)
@@ -20,7 +29,18 @@ def style_winrate(df_val, df_cnt):
         for c in df_val.columns:
             v = df_val.loc[r, c]
             df_text.loc[r, c] = "" if pd.isna(v) else f"{v:.0%} ({int(df_cnt.loc[r, c])})"
-    return df_text.style.background_gradient(cmap='RdYlGn', vmin=0, vmax=1, gmap=df_val, axis=None)
+    gmap = df_val.copy()
+    for r in df_val.index:
+        for c in df_val.columns:
+            if r == c:
+                gmap.loc[r, c] = float("nan")
+    return (
+        df_text.style
+        .background_gradient(cmap='RdYlGn', vmin=0, vmax=1, gmap=gmap, axis=None)
+        .set_properties(**{"color": "#111827"})
+        .set_properties(subset=pd.IndexSlice[df_val.index, df_val.columns], **{"border": "1px solid #e5e7eb"})
+        .apply(lambda _: _neutral_diagonal_styles(df_val), axis=None)
+    )
 
 
 def style_matrix_mmr(df_val, df_delta=None):
@@ -77,6 +97,51 @@ def style_matrix_mmr(df_val, df_delta=None):
         gmap=gmap,
         axis=None,
     )
+
+
+def style_victory_matrix(df_val):
+    """Style the V2 relative pairwise win-probability matrix."""
+    import numpy as np
+
+    if df_val.empty:
+        return df_val.style
+
+    df_text = df_val.copy().astype(object)
+    gmap = pd.DataFrame(np.nan, index=df_val.index, columns=df_val.columns)
+    for row in df_val.index:
+        for column in df_val.columns:
+            value = df_val.loc[row, column]
+            if pd.isna(value):
+                df_text.loc[row, column] = ""
+                continue
+            df_text.loc[row, column] = f"{value:.0%}"
+            if row != column:
+                gmap.loc[row, column] = value
+
+    return df_text.style.background_gradient(
+        cmap="RdYlGn",
+        vmin=0.0,
+        vmax=1.0,
+        gmap=gmap,
+        axis=None,
+    ).set_properties(**{"color": "#111827"}).apply(
+        lambda _: _neutral_diagonal_styles(df_val), axis=None,
+    )
+
+def order_matrix_by_ranking(df_val, table):
+    """Order a square matrix using the current V2 conservative ranking."""
+    if df_val.empty or not table:
+        return df_val
+    ranking_order = [
+        item["player"]
+        for item in table[-1].get("Ranking Triples", [])
+        if item["player"] in df_val.index and item["player"] in df_val.columns
+    ]
+    ranking_order.extend(
+        player for player in df_val.index
+        if player not in ranking_order and player in df_val.columns
+    )
+    return df_val.loc[ranking_order, ranking_order]
 
 
 def style_goals_matrix(df_val):
@@ -166,7 +231,7 @@ def render_interface():
 
 
 @st.cache_data
-def get_cached_RL_table(selected_sheet):
+def get_cached_RL_table(selected_sheet, engine_version=2):
     return get_RL_table(selected_sheet)
 
 def render_rl():
@@ -177,6 +242,7 @@ def render_rl():
 
     rl_players, rl_colors = get_game_players("Rocket League")
     df_matches = read_sheet_df(selected_sheet)
+    table = get_cached_RL_table(selected_sheet, engine_version=6)
 
     st.title("🚀 Rocket League - MMR Scoreboard")
 
@@ -205,7 +271,7 @@ def render_rl():
                         st.success(f"'{_name}' added! Refresh the page to see them.")
                         st.rerun()
 
-        with st.form("new_match_form"):
+        with st.container():
             col_date, col_extra = st.columns([1, 3])
             with col_date:
                 input_date = st.date_input("Date", date.today())
@@ -224,7 +290,20 @@ def render_rl():
                 sel_orange = st.multiselect("Orange Players", options=sorted(rl_players), key="m_orange", max_selections=4)
                 score_orange = st.number_input("Orange Goals", min_value=0, step=1, key="s_orange")
 
-            submitted = st.form_submit_button("REGISTER MATCH", width='stretch')
+            if sel_blue and sel_orange:
+                probability_a, probability_b = predict_win_probability(
+                    sel_blue,
+                    sel_orange,
+                    table[-1] if table else None,
+                )
+            else:
+                probability_a, probability_b = 0.5, 0.5
+            st.metric(
+                "Win probability",
+                f"Blue {probability_a:.0%}  |  Orange {probability_b:.0%}",
+            )
+
+            submitted = st.button("REGISTER MATCH", width='stretch', key="register_rl_match")
 
             if submitted:
                 if not sel_blue or not sel_orange:
@@ -267,8 +346,6 @@ def render_rl():
             st.info(f"No matches recorded in {selected_sheet}. Go to 'Add Match' to get started!")
         return
 
-    table = get_cached_RL_table(selected_sheet)
-
     # --- TAB 1: MATCH HISTORY ---
     with tab1:
         st.subheader("Match History")
@@ -277,6 +354,61 @@ def render_rl():
     # --- TAB 2: CHARTS ---
     with tab2:
         st.subheader("Leaderboard & Stats")
+
+        col_ranking_v2, col_matrix_v2 = st.columns(2)
+
+        with col_ranking_v2:
+            st.markdown("#### V2 Ranking Uncertainty")
+            df_ranking_v2 = prepare_ranking_intervals(table)
+            if not df_ranking_v2.empty:
+                ranking_base = alt.Chart(df_ranking_v2).encode(
+                    x=alt.X(
+                        "Player:N",
+                        sort=alt.SortField(field="Score", order="descending"),
+                        title=None,
+                        axis=alt.Axis(labelAngle=0, labelLimit=140),
+                    ),
+                    tooltip=[
+                        alt.Tooltip("Player:N"),
+                        alt.Tooltip("Lower:Q", title="theta - 3sigma", format=".3f"),
+                        alt.Tooltip("Score:Q", title="theta - k*sigma", format=".3f"),
+                        alt.Tooltip("Upper:Q", title="theta + 3sigma", format=".3f"),
+                    ],
+                )
+                ranking_interval = ranking_base.mark_rule(color="#6b7280", strokeWidth=4).encode(
+                    y=alt.Y("Lower:Q", title="MMR score", scale=alt.Scale(zero=True)),
+                    y2="Upper:Q",
+                )
+                ranking_lower = ranking_base.mark_point(color="#f59e0b", filled=True, size=90).encode(
+                    y="Lower:Q",
+                )
+                ranking_score = ranking_base.mark_point(color="#2563eb", filled=True, size=130).encode(
+                    y="Score:Q",
+                )
+                ranking_upper = ranking_base.mark_point(color="#16a34a", filled=True, size=90).encode(
+                    y="Upper:Q",
+                )
+                st.altair_chart(
+                    ranking_interval + ranking_lower + ranking_score + ranking_upper,
+                    width="stretch",
+                )
+            else:
+                st.info("No V2 ranking data available.")
+
+        with col_matrix_v2:
+            if OLD_MMR:
+                df_daily, last_date = prepare_daily_mmr_delta_history(table)
+            else:
+                df_daily, last_date = prepare_global_matrix_daily_mmr_delta_history(table)
+            st.markdown(f"#### MMR Delta - Last Session ({last_date})")
+            n_matches = int(df_daily["Match"].max())
+            plot_line_chart(
+                df_daily,
+                "Match",
+                [c for c in df_daily.columns if c != "Match"],
+                rl_colors,
+                tick_values=list(range(n_matches + 1)),
+            )
 
         date_changes = prepare_date_changes(table)
 
@@ -289,84 +421,17 @@ def render_rl():
         st.markdown("#### Global Matrix MMR History (match by match)")
         plot_line_chart(df_global_matrix, "Match", [c for c in df_global_matrix.columns if c != "Match"], rl_colors, vline_x_values=date_changes)
 
-        st.markdown("---")
-        st.subheader("Matrix MMR Match by Match")
-        st.markdown(
-            "- **Matrix**: How the column player performs relative to the row player (value > 0 means column player is dominating).\n"
-            "- Select a match below to see the state of the MMR Matrix after that match."
-        )
-        
-        matrix_history = prepare_matrix_mmr_history(table)
-        if matrix_history:
-            if 'matrix_sel' not in st.session_state:
-                st.session_state.matrix_sel = len(matrix_history)
-                
-            def dec_matrix():
-                st.session_state.matrix_sel = max(1, st.session_state.matrix_sel - 1)
-            def inc_matrix():
-                st.session_state.matrix_sel = min(len(matrix_history), st.session_state.matrix_sel + 1)
+        st.markdown("#### V2 Pairwise Probabilities")
+        df_victories_v2 = prepare_victory_matrix(table)
+        df_model_probabilities_v2 = prepare_model_probability_matrix(table)
+        col_direct_v2, col_model_v2 = st.columns(2)
+        with col_direct_v2:
+            st.markdown("##### Direct weighted probability")
+            st.dataframe(style_victory_matrix(df_victories_v2), use_container_width=True)
+        with col_model_v2:
+            st.markdown("##### Model probability")
+            st.dataframe(style_victory_matrix(df_model_probabilities_v2), use_container_width=True)
 
-            col_btn_L, col_sld, col_btn_R = st.columns([1, 10, 1])
-            col_btn_L.button("◀", on_click=dec_matrix, use_container_width=True)
-            selected_match_idx = col_sld.slider("Select Match Index", min_value=1, max_value=len(matrix_history), key="matrix_sel", label_visibility="collapsed")
-            col_btn_R.button("▶", on_click=inc_matrix, use_container_width=True)
-            
-            entry = table[selected_match_idx - 1]
-            ot_str = " **(OT)**" if entry["Overtime"] else ""
-            blue_str = ", ".join(entry["Blue Team"])
-            orange_str = ", ".join(entry["Orange Team"])
-
-            df_matrix_mmr = matrix_history[selected_match_idx - 1]
-            if selected_match_idx > 1:
-                df_prev = matrix_history[selected_match_idx - 2]
-            else:
-                df_prev = pd.DataFrame(0.0, index=df_matrix_mmr.index, columns=df_matrix_mmr.columns)
-            
-            prob_blue = entry.get("Matrix Blue Prob.", 0.5)
-            prob_orange = entry.get("Matrix Orange Prob.", 0.5)
-            
-            st.markdown(f"🗓️ **Match {entry['Match']}** ({entry['Date']}) — 🔵 {blue_str} **({int(round(prob_blue*100))}%)** **{entry['Blue Score']} - {entry['Orange Score']}** **({int(round(prob_orange*100))}%)** 🟠 {orange_str}{ot_str}")
-            
-            df_delta = df_matrix_mmr - df_prev
-            
-            st.dataframe(style_matrix_mmr(df_matrix_mmr, df_delta), use_container_width=True)
-
-        if UNCERTAINTY:
-            st.markdown("---")
-            df_unc = prepare_uncertainty_history(table)
-            st.markdown("#### Uncertainty History")
-            plot_line_chart(df_unc, "Match", [c for c in df_unc.columns if c != "Match"], rl_colors, vline_x_values=date_changes)
-
-        st.markdown("---")
-        col_leaderboard, col_daily = st.columns(2)
-
-        with col_leaderboard:
-            if OLD_MMR:
-                df_lb = prepare_leaderboard(table)
-            else:
-                df_lb = prepare_global_matrix_mmr_history(table).drop(columns=['Match']).iloc[-1].reset_index()
-                df_lb.columns = ["Player", "MMR"]
-            st.markdown("#### Current MMR")
-            domain_colors = [p for p in df_lb["Player"] if p in rl_colors]
-            range_colors = [rl_colors[p] for p in domain_colors]
-            chart = alt.Chart(df_lb).mark_bar().encode(
-                x=alt.X("Player", sort="-y"),
-                y="MMR",
-                color=alt.Color("Player", scale=alt.Scale(domain=domain_colors, range=range_colors), legend=None),
-                tooltip=["Player", "MMR"]
-            )
-            st.altair_chart(chart, width='stretch')
-
-        with col_daily:
-            if OLD_MMR:
-                df_daily, last_date = prepare_daily_mmr_delta_history(table)
-            else:
-                df_daily, last_date = prepare_global_matrix_daily_mmr_delta_history(table)
-            st.markdown(f"#### MMR Delta - Last Session ({last_date})")
-            n_matches = int(df_daily["Match"].max())
-            plot_line_chart(df_daily, "Match", [c for c in df_daily.columns if c != "Match"], rl_colors, tick_values=list(range(n_matches + 1)))
-
-        st.markdown("---")
         st.subheader("Win Rate Matrices")
         st.markdown(
             "- **Diagonal**: player's overall win rate\n"
@@ -375,48 +440,19 @@ def render_rl():
         )
 
         df_tog, df_ag, cnt_tog, cnt_ag = prepare_winrate_matrices(table)
+        df_tog = order_matrix_by_ranking(df_tog, table)
+        df_ag = order_matrix_by_ranking(df_ag, table)
+        cnt_tog = order_matrix_by_ranking(cnt_tog, table)
+        cnt_ag = order_matrix_by_ranking(cnt_ag, table)
 
         col_tog, col_ag = st.columns(2)
         with col_tog:
-            st.markdown("#### Win Rate Playing Together")
-            st.dataframe(style_winrate(df_tog, cnt_tog))
-        with col_ag:
             st.markdown("#### Win Rate Playing Against")
             st.dataframe(style_winrate(df_ag, cnt_ag))
+        with col_ag:
+            st.markdown("#### Win Rate Playing Together")
+            st.dataframe(style_winrate(df_tog, cnt_tog))
             
-        st.markdown("---")
-        st.subheader("1v1 Matrices")
-        st.markdown(
-            "- **Win Rate 1v1**: win rate playing 1v1 against the column player (row vs col)\n"
-            "- **Goals 1v1**: goals scored and conceded in 1v1 matches (row vs col)"
-        )
-        
-        df_1v1_wr, cnt_1v1_wr = prepare_1v1_winrate_matrix(table)
-        df_1v1_goals = prepare_1v1_goals_matrix(table)
-
-        col_1v1_wr, col_1v1_goals = st.columns(2)
-        with col_1v1_wr:
-            st.markdown("#### Win Rate 1v1")
-            st.dataframe(style_winrate(df_1v1_wr, cnt_1v1_wr))
-        with col_1v1_goals:
-            st.markdown("#### Goals 1v1 (GF-GA)")
-            st.dataframe(style_goals_matrix(df_1v1_goals))
-
-        st.markdown("---")
-        st.subheader("Win Probability vs MMR Difference")
-        st.markdown(f"Win probability as a function of $x$ according to $1 / (1 + 10^{{x / {RL_MATRIX_GAMMA}}})$")
-        
-        import numpy as np
-        x_vals = np.linspace(0, int(RL_MATRIX_GAMMA * 2.5), 200)
-        y_vals = 1 / (1 + 10**(x_vals / RL_MATRIX_GAMMA))
-        df_prob = pd.DataFrame({"x": x_vals, "Prob": y_vals})
-        chart_prob = alt.Chart(df_prob).mark_line(color="#1f77b4").encode(
-            x=alt.X("x:Q", title="x (Difference)"),
-            y=alt.Y("Prob:Q", title="Win Probability", axis=alt.Axis(format="%")),
-            tooltip=[alt.Tooltip("x:Q", format=".0f"), alt.Tooltip("Prob:Q", format=".1%")]
-        )
-        st.altair_chart(chart_prob, width='stretch')
-
 def render_mk():
     selected_sheet = MK_SHEET
 

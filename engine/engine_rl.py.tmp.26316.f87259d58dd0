@@ -7,8 +7,8 @@ from utils import format_date, round_dict_values, convert_bool
 from config import (
     RL_BASE_MMR, RL_DATE_COL, RL_MATCH_COL, RL_BLUE_TEAM_COLS, RL_ORANGE_TEAM_COLS,
     RL_BLUE_SCORE_COL, RL_ORANGE_SCORE_COL, RL_OVERTIME_COL, RL_DEACTIVATED_PLAYERS,
-    RL_MATRIX_GAMMA, RL_MMR_SCALE, RL_MASSEY_GOAL_DIFF_FACTOR, RL_MASSEY_GOAL_DIFF_CAP,
-    RL_MASSEY_REGULARIZATION, RL_MASSEY_DECAY, RL_MASSEY_MATCHUP_BALANCE,
+    RL_MATRIX_GAMMA, RL_MASSEY_SCALE, RL_MASSEY_GOAL_DIFF_FACTOR, RL_MASSEY_GOAL_DIFF_CAP,
+    RL_MASSEY_REGULARIZATION, RL_MASSEY_DECAY,
     RL_ENGINE_LOG_FILE,
 )
 
@@ -59,13 +59,10 @@ def get_RL_table(sheet_name):
 
     massey = MasseyHandler(
         base_mmr=RL_BASE_MMR,
-        scale=RL_MMR_SCALE,
+        scale=RL_MASSEY_SCALE,
         gamma=RL_MATRIX_GAMMA,
         goal_diff_factor=RL_MASSEY_GOAL_DIFF_FACTOR[sheet_name],
         goal_diff_cap=RL_MASSEY_GOAL_DIFF_CAP[sheet_name],
-        regularization=RL_MASSEY_REGULARIZATION,
-        decay=RL_MASSEY_DECAY,
-        matchup_balance=RL_MASSEY_MATCHUP_BALANCE,
     )
 
     for _, rows in read_sheet_df(sheet_name).iterrows():

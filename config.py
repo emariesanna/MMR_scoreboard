@@ -24,6 +24,26 @@ RL_MATRIX_DECAY_PER_DAY = 0.0
 RL_K_FACTOR = 0.85
 RL_BASE_MMR_DELTA = 25
 RL_GOAL_DIFFERENCE_FACTOR = {"RL_Soccar": 7, "RL_Gridiron": 61, "RL_Hoops": 7, "RL_Dropshot": 4}
+# Massey rating system parameters
+# goal_diff_cap: max effective differential (weight reaches 2x at cap)
+# goal_diff_factor: divisor for the ramp — weight = 1 + (min(diff, cap) - 1) / factor
+# Soccar: user-specified (+20% per goal, cap at 6 → factor=5)
+# Other modes: derived from existing RL_GOAL_DIFFERENCE_FACTOR for consistency
+RL_MMR_SCALE = 150  # effective-goal units → MMR display points
+RL_MASSEY_GOAL_DIFF_FACTOR = {"RL_Soccar": 5, "RL_Gridiron": 60, "RL_Hoops": 6, "RL_Dropshot": 3}
+RL_MASSEY_GOAL_DIFF_CAP   = {"RL_Soccar": 6, "RL_Gridiron": 61, "RL_Hoops": 7, "RL_Dropshot": 4}
+# Regularization: phantom-draw equivalent added to the normal equations diagonal.
+# Dampens oscillations when a player has few real games (effect fades as games accumulate).
+# ~5 means a player needs ~5 real 1v1 games before real data dominates the prior.
+RL_MASSEY_REGULARIZATION = 5.0
+# Per-match exponential decay (1.0 = no decay / uniform weight).
+# decay=0.98 → half-life ≈ 35 matches (older games gradually count less).
+RL_MASSEY_DECAY = 0.98
+# Matchup saturation exponent.
+# 1.0 = no saturation (n repeats count n× more than 1 game)
+# 0.5 = √n saturation (20 repeats ≈ 4.5× a single game — recommended)
+# 0.0 = full balance (every distinct matchup always contributes exactly 1 unit)
+RL_MASSEY_MATCHUP_BALANCE = 0.5
 RL_BASE_UNCERTAINTY = 3.0
 RL_UNCERTAINTY_DECAY = {"RL_Soccar": 0.1, "RL_Gridiron": 0.25, "RL_Hoops": 0.25, "RL_Dropshot": 0.25} # Per match
 RL_UNCERTAINTY_INCREASE = 0.025 # Per day of inactivity
@@ -32,7 +52,7 @@ RL_MMR_RECLAIM = 30
 RL_MAX_DECAY = 800
 RL_ENGINE_LOG_FILE = os.path.join(ROOT, "logs", "rl_engine_handlers.log")
 # Players
-RL_DEACTIVATED_PLAYERS = ["Andre"] # ["Gio", "Andre"]
+RL_DEACTIVATED_PLAYERS = ["Gio", "Andre"]
 RL_HIDDEN_PLAYERS = [] # Players whose MMR is hidden from the leaderboard   
 
 # --- Mario Kart ---
