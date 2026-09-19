@@ -361,12 +361,17 @@ def render_rl():
             st.markdown("#### V2 Ranking Uncertainty")
             df_ranking_v2 = prepare_ranking_intervals(table)
             if not df_ranking_v2.empty:
+                ranking_label_angle = 45 if len(df_ranking_v2) > 4 else 0
                 ranking_base = alt.Chart(df_ranking_v2).encode(
                     x=alt.X(
                         "Player:N",
                         sort=alt.SortField(field="Score", order="descending"),
                         title=None,
-                        axis=alt.Axis(labelAngle=0, labelLimit=140),
+                        axis=alt.Axis(
+                            labelAngle=ranking_label_angle,
+                            labelLimit=220,
+                            labelOverlap=False,
+                        ),
                     ),
                     tooltip=[
                         alt.Tooltip("Player:N"),
